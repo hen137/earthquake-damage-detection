@@ -110,7 +110,6 @@ def rle_encode(mask_image):
     runs[1::2] = runs[1::2] - runs[:-1:2]
     return runs
 
-
 class AverageMeter(object):
     """Computes and stores the average and current value"""
     def __init__(self):

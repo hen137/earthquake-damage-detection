@@ -10,7 +10,7 @@ from torch.nn import functional as F
 from torchvision.transforms import functional as transF
 from torch.utils.data import DataLoader
 from collections import OrderedDict
-from datasets import Levir_CD as Data
+from data import data as Data
 
 class PredOptions():
     def __init__(self):
@@ -119,11 +119,11 @@ def main():
     begin_time = time.time()
     opt = PredOptions().parse()
     if opt.encoder == 'ResNet':
-        from models.ResNet_CD import ResNet_CD as Net
+        from models.SAM2 import ResNet_CD as Net
     elif opt.encoder == 'SAM':
-        from models.SAM_CD import SAM_CD as Net
+        from models.DeepLabV3 import SAM_CD as Net
     elif opt.encoder == 'effSAM':
-        from models.effSAM_CD import SAM_CD as Net
+        from models.MaskRCNN import SAM_CD as Net
     else:
         raise Exception(f'Unknown encoder {opt.encoder}')
     net = Net()
