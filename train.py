@@ -91,7 +91,8 @@ def parse_arguments():
     parser.add_argument('--weight_decay', required=False, default=5e-4, type=float)
     parser.add_argument('--momentum', required=False, default=0.9, type=float)
     
-    parser.add_argument('--pixel_confidence_thresh', required=False, default=0.6, type=float)
+    parser.add_argument('--pixel_confidence_thresh', required=False, default=0.75, type=float)
+    parser.add_argument('--mask_confidence_thresh', required=False, default=0.65, type=float)
     
     parser.add_argument('--print_freq', required=False, default=20, type=int)
     parser.add_argument('--val_freq', required=False, default=2, type=int)
