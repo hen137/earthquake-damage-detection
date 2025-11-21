@@ -70,7 +70,8 @@ class MaskRCNN():
                     with torch.no_grad():
                         predictions = self.net(images)
                         
-                        mask = torch.einsum('bcij->cij', (predictions[0]['masks'] > self.args.pixel_confidence_thresh).float()) # assumes batch_size is 1
+                        thresh_idx = (predictions[0]['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
+                        mask = torch.einsum('bcij->cij', (predictions[0]['masks'][thresh_idx] > self.args.pixel_confidence_thresh).float()) # assumes batch_size is 1
                         accuracy, _, _, _, _ = binary_accuracy(mask, targets['masks'].squeeze(0))
                         
                         epoch_accuracy += accuracy
@@ -116,10 +117,11 @@ class MaskRCNN():
                 with torch.no_grad():
                     predictions = self.net(image)
                     
-                    mask = torch.einsum('bcij->cij', predictions[0]['masks'])
+                    thresh_idx = (predictions[0]['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
+                    mask = torch.einsum('bcij->cij', predictions[0]['masks'][thresh_idx])
                     loss = F.binary_cross_entropy_with_logits(mask, targets['masks'].squeeze(0).float())
                     
-                    mask = torch.einsum('bcij->cij', (predictions[0]['masks'] > self.args.pixel_confidence_thresh).float())
+                    mask = torch.einsum('bcij->cij', (predictions[0]['masks'][thresh_idx] > self.args.pixel_confidence_thresh).float())
                     acc, precision, recall, f1, iou = binary_accuracy(mask, targets['masks'].squeeze(0))
                 
                 val_loss += loss.item()
