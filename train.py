@@ -63,13 +63,13 @@ def get_data_loaders(args):
     trainset = KATE(data, 'train', transforms)
     train_loader = DataLoader(trainset, args.train_batch_size, shuffle=True)
 
-    testset = KATE(data, 'test', transforms)
-    test_loader = DataLoader(testset, args.test_batch_size)
+    # testset = KATE(data, 'test', transforms)
+    # test_loader = DataLoader(testset, args.test_batch_size)
     
     validationset = KATE(data, 'validation', transforms)
     validation_loader = DataLoader(validationset, args.val_batch_size)
     
-    return train_loader, test_loader, validation_loader
+    return train_loader, validation_loader
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Training")
@@ -100,7 +100,7 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
-    train_loader, _, val_loader = get_data_loaders(args)
+    train_loader, val_loader = get_data_loaders(args)
     net, model = build_model(args, train_loader, val_loader)
 
     # if args.multi_gpu:
