@@ -10,7 +10,7 @@ from torchvision.transforms import v2
 from datasets import load_dataset
 
 # Custom Imports
-from data import KATE
+from data.data import KATE
 
 def build_model(args, train_loader, val_loader):
     device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
@@ -39,7 +39,7 @@ def build_model(args, train_loader, val_loader):
 
     # net = Net()
     optimizer = optim.SGD(
-        [p for p in model.parameters() if p.requires_grad],
+        [p for p in net.parameters() if p.requires_grad],
         lr=args.lr,
         weight_decay=args.weight_decay,
         momentum=args.momentum,
@@ -80,11 +80,12 @@ def parse_arguments():
     # parser.add_argument('--multi_gpu', required=False, default=None, type=str)
     # parser.add_argument('--dev_id', required=False, default=0, type=int)
     # parser.add_argument('--data_loader_num_workers', required=False, default=16, type=int)
+    parser.add_argument('--use_scaler', required=False, default=False, type=bool)
     
     parser.add_argument('--epochs', required=False, default=20, type=int)
     parser.add_argument('--train_batch_size', required=False, default=1, type=int)
-    parser.add_argument('--test_batch_size', required=False, default=16, type=int)
-    parser.add_argument('--val_batch_size', required=False, default=32, type=int)
+    parser.add_argument('--test_batch_size', required=False, default=1, type=int)
+    parser.add_argument('--val_batch_size', required=False, default=1, type=int)
     parser.add_argument('--lr', required=False, default=5e-4, type=float)
     
     parser.add_argument('--weight_decay', required=False, default=5e-4, type=float)
@@ -92,9 +93,9 @@ def parse_arguments():
     
     parser.add_argument('--pixel_confidence_thresh', required=False, default=0.6, type=float)
     
-    parser.add_argument('--print_freq', required=False, default=200, type=int)
-    parser.add_argument('--val_freq', required=False, default=20, type=int)
-    parser.add_argument('--chkpt_dir', required=False, default='../models/checkpoints')
+    parser.add_argument('--print_freq', required=False, default=20, type=int)
+    parser.add_argument('--val_freq', required=False, default=2, type=int)
+    parser.add_argument('--chkpt_dir', required=False, default='./models/checkpoints')
 
     return parser.parse_args()
 
@@ -107,9 +108,9 @@ def main():
     #     net = torch.nn.DataParallel(net, [int(id) for id in args.multi_gpu.split(',')])
     # net.to(device=torch.device('cuda', int(args.dev_id)))
 
-    print(f'Training {args.encoder} started')
+    print(f'Training {args.model} started')
     model.train()
-    print(f'Training {args.encoder} finished')
+    print(f'Training {args.model} finished')
 
 if __name__ == '__main__':
     main()
