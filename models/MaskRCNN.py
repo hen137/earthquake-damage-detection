@@ -95,7 +95,7 @@ class MaskRCNN():
                 
                 if epoch_accuracy > best_epoch_accuracy: best_epoch_accuracy = epoch_accuracy
                 
-                print(f'[Epoch {epoch + 1}/{self.args.epochs}, Exec Time {time.time() - begin_time:.2f}s] [Best] [vAccuracy {best_validation_accuracy * 100:.2f}%, vLoss {best_validation_loss:.4f}, F1 {best_F1:.2f}, IoU {best_IoU:.2f}]')
+                print(f'[Epoch {epoch + 1}/{self.args.epochs}, Exec Time {time.time() - begin_time:.2f}s] [Best] [vAccuracy {best_validation_accuracy * 100:.2f}%, vLoss {best_validation_loss:.4f}, F1 {best_F1:.3f}, IoU {best_IoU:.3f}]')
 
     def validate(self, epoch):
         # the following code is written assuming that batch size is 1
@@ -134,7 +134,7 @@ class MaskRCNN():
             F1 /= len(self.validation_loader)
             IoU /= len(self.validation_loader)
         
-        print(f'[Validation] [Epoch {epoch + 1}, Exec Time {time.time() - start_time:.2f}s] [Loss {val_loss:.4f}, Accuracy {accuracy * 100:.2f}%, F1 {F1:.2f}, IoU {IoU:.2f}]')
+        print(f'[Validation] [Epoch {epoch + 1}, Exec Time {time.time() - start_time:.2f}s] [Loss {val_loss:.4f}, Accuracy {accuracy * 100:.2f}%, F1 {F1:.3f}, IoU {IoU:.3f}]')
 
         return val_loss, accuracy, F1, IoU
     
@@ -145,6 +145,6 @@ class MaskRCNN():
             self.net.state_dict(), 
             os.path.join(
                 self.args.chkpt_dir, 
-                f"{self.args.model}_e{epoch}_OA{val_accuracy * 100:.2f}_F{val_F1 * 100:.2f}_IoU{val_IoU * 100:.2f}_{date_str}.pth"
+                f"{self.args.model}_e{epoch}_OA{val_accuracy * 100:.2f}_F{val_F1:.3f}_IoU{val_IoU:.3f}_{date_str}.pth"
             )
         )
