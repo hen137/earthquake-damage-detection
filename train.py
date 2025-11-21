@@ -81,7 +81,7 @@ def parse_arguments():
     # parser.add_argument('--dev_id', required=False, default=0, type=int)
     # parser.add_argument('--data_loader_num_workers', required=False, default=16, type=int)
     
-    parser.add_argument('--epochs', required=False, default=100, type=int)
+    parser.add_argument('--epochs', required=False, default=20, type=int)
     parser.add_argument('--train_batch_size', required=False, default=1, type=int)
     parser.add_argument('--test_batch_size', required=False, default=16, type=int)
     parser.add_argument('--val_batch_size', required=False, default=32, type=int)
