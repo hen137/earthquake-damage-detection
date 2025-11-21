@@ -191,9 +191,9 @@ def binary_accuracy(pred, label):
     label = (label>= 0.5)
     
     TP = float((pred * label).sum())
-    FP = float((pred * (1-label)).sum())
-    FN = float(((1-pred) * (label)).sum())
-    TN = float(((1-pred) * (1-label)).sum())
+    FP = float((pred * (~label)).sum())
+    FN = float(((~pred) * (label)).sum())
+    TN = float(((~pred) * (~label)).sum())
     precision = TP / (TP+FP+1e-10)
     recall = TP / (TP+FN+1e-10)
     IoU = TP / (TP+FP+FN+1e-10)
