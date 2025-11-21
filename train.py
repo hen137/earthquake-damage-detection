@@ -89,8 +89,6 @@ def parse_arguments():
     
     parser.add_argument('--weight_decay', required=False, default=5e-4, type=float)
     parser.add_argument('--momentum', required=False, default=0.9, type=float)
-    parser.add_argument('--predict_step', required=False, default=5, type=int)
-    parser.add_argument('--crop_size', required=False, default=512, type=int)
     
     parser.add_argument('--pixel_confidence_thresh', required=False, default=0.6, type=float)
     
