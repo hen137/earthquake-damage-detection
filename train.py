@@ -51,7 +51,15 @@ def build_model(args, train_loader, val_loader):
         total_steps=args.epochs * len(train_loader)
     )
     
-    model = TrainerClass(args, net, device, train_loader, val_loader, optimizer, lr_scheduler)
+    model = TrainerClass(
+        args, 
+        net, 
+        device, 
+        train_loader=train_loader, 
+        val_loader=val_loader, 
+        optimizer=optimizer, 
+        lr_scheduler=lr_scheduler
+    )
     
     return net, model
     
@@ -98,7 +106,9 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
+    
     train_loader, val_loader = get_data_loaders(args)
+    
     net, model = build_model(args, train_loader, val_loader)
 
     # if args.multi_gpu:
