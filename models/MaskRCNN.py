@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from utils.utils import binary_accuracy
 
 class MaskRCNN():
-    def __init__(self, args, net, device, train_loader, val_loader, test_loader, optimizer, lr_scheduler):
+    def __init__(self, args, net, device, train_loader=None, val_loader=None, test_loader=None, optimizer=None, lr_scheduler=None):
         self.args = args
         self.net = net
         self.device = device
@@ -23,6 +23,13 @@ class MaskRCNN():
         self.net.to(self.device)
 
     def train(self):
+        if not self.train_loader:
+            raise Exception(f'No value provided for train_loader')
+        elif not self.optimizer:
+            raise Exception(f'No value provided for optimizer')
+        elif not self.lr_scheduler:
+            raise Exception(f'No value provided for lr_scheduler')
+        
         best_epoch_accuracy = 0.0
         best_validation_accuracy = 0.0
         best_validation_loss = 0
@@ -99,6 +106,9 @@ class MaskRCNN():
                 print(f'[Epoch {epoch + 1}/{self.args.epochs}, Exec Time {time.time() - begin_time:.2f}s] [Best] [vAccuracy {best_validation_accuracy * 100:.2f}%, vLoss {best_validation_loss:.4f}, F1 {best_F1:.3f}, IoU {best_IoU:.3f}]')
 
     def validate(self, epoch):
+        if not self.validation_loader:
+            raise Exception(f'No value provided for validation_loader')
+        
         # the following code is written assuming that batch size is 1
         if self.args.gpu: torch.cuda.empty_cache()
         
@@ -139,6 +149,8 @@ class MaskRCNN():
         return val_loss, accuracy, F1, IoU
     
     def predict(self):
+        if not self.test_loader:
+            raise Exception(f'No value provided for test_loader')
         images = []
         targets = []
         predictions = []
@@ -146,19 +158,31 @@ class MaskRCNN():
         self.net.eval()
         with torch.no_grad():
             for i, (image, i_targets) in enumerate(self.test_loader):
-                images.append(image)
+                images.append(image.squeeze(0))
                 targets.append(i_targets)
-                predictions.append(self.net(image)[0])
+                
+                pred = self.net(image)[0]
+                
+                thresh_idx = (pred['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
+                predictions.append({'mask': torch.einsum('bcij->cij', (pred['masks'][thresh_idx] > self.args.pixel_confidence_thresh)).bool()})
         
         return images, predictions, targets
     
     def save_model(self, epoch, val_accuracy, val_F1, val_IoU, date_str):
-        if not os.path.exists(self.args.chkpt_dir): os.mkdir(self.args.chkpt_dir)
+        checkpoint_dir = self.args.chkpt_dir + '/MaskRCNN'
+        if not os.path.exists(checkpoint_dir): os.mkdir(checkpoint_dir)
         
         torch.save(
-            self.net.state_dict(), 
+            {
+                'epoch': epoch,
+                'model_state_dict': self.net.state_dict(),
+                'val_accuracy': val_accuracy,
+                'val_F1': val_F1,
+                'val_IoU': val_IoU,
+                'date_str': date_str
+            },
             os.path.join(
-                self.args.chkpt_dir, 
+                checkpoint_dir, 
                 f"{self.args.model}_e{epoch}_OA{val_accuracy * 100:.2f}_F{val_F1:.3f}_IoU{val_IoU:.3f}_{date_str}.pth"
             )
         )

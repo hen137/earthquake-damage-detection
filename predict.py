@@ -4,13 +4,52 @@ import argparse
 # Library Imports
 # import tqdm
 import torch
-from torch import optim
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision.transforms import v2
+from torchvision.utils import draw_segmentation_masks
 from datasets import load_dataset
 
 # Custom Imports
 from data.data import KATE
+
+def build_model(args, test_loader):
+    device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
+    
+    if args.model == 'SAM2':
+        from models.SAM2 import SAM2 as TrainerClass
+        #TODO: setup SAM2
+    elif args.model == 'MaskRCNN':
+        from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
+        # from torchvision.models.detection import MaskRCNN_ResNet50_FPN_V2_Weights
+        from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+        from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
+        from models.MaskRCNN import MaskRCNN as TrainerClass
+        
+        net = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
+        
+        in_features_box = net.roi_heads.box_predictor.cls_score.in_features
+        in_features_mask = net.roi_heads.mask_predictor.conv5_mask.in_channels
+        dim_reduced = net.roi_heads.mask_predictor.conv5_mask.out_channels
+        net.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=2)
+        net.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced, num_classes=2)
+        
+        # checkpoint = torch.load(args.chkpt_file, map_location=device)
+        # net.load_state_dict(checkpoint['model_state_dict'])
+        
+    # elif args.model == 'DeepLabV3+':
+    #     from models.DeepLabV3 import DeepLabV3 as TrainerClass
+    else:
+        raise ValueError(f'Unknown encoder type: {args.encoder}')
+    
+    model = TrainerClass(
+        args, 
+        net, 
+        device, 
+        test_loader=test_loader
+    )
+    
+    return net, model
 
 def get_data_loaders(args):
     data = load_dataset('CSCRS/kate-cd')
@@ -31,28 +70,40 @@ def parse_arguments():
     # parser.add_argument('--multi_gpu', required=False, default=None, type=str)
     # parser.add_argument('--dev_id', required=False, default=0, type=int)
     # parser.add_argument('--data_loader_num_workers', required=False, default=16, type=int)
-    # parser.add_argument('--use_scaler', required=False, default=False, type=bool)
 
-    parser.add_argument('--epochs', required=False, default=20, type=int)
     parser.add_argument('--test_batch_size', required=False, default=1, type=int)
 
     parser.add_argument('--pixel_confidence_thresh', required=False, default=0.75, type=float)
     parser.add_argument('--mask_confidence_thresh', required=False, default=0.65, type=float)
 
-    parser.add_argument('--chkpt_dir', required=False, default='./models/checkpoints')
+    # parser.add_argument('--chkpt_file', required=True)
 
     return parser.parse_args()
 
 def main():
     args = parse_arguments()
+    
     test_loader = get_data_loaders(args)
     
+    net, model = build_model(args, test_loader)
     
-
+    images, predictions, targets = model.predict()
+    
+    idx = 0
+    
+    gt = draw_segmentation_masks(image=images[idx], masks=(targets[idx]['masks'].squeeze(0) > 0), alpha=0.3, colors='red')
+    pred = draw_segmentation_masks(image=images[idx], masks=predictions[idx]['mask'], alpha=0.3, colors='blue')
+    
+    # plt.imshow(gt.permute(1, 2, 0))
+    plt.imshow(torch.cat((gt, pred), 1).permute(1, 2, 0))
+    plt.show()
+    
+    # for i in []:
+    #     ...
+    
 if __name__ == '__main__':
     main()
     
-
 # class PredOptions():
 #     def __init__(self):
 #         """Reset the class; indicates the class hasn't been initailized"""
