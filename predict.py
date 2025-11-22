@@ -95,7 +95,7 @@ def main():
     pred = draw_segmentation_masks(image=images[idx], masks=predictions[idx]['mask'], alpha=0.3, colors='blue')
     
     # plt.imshow(gt.permute(1, 2, 0))
-    plt.imshow(torch.cat((gt, pred), 1).permute(1, 2, 0))
+    plt.imshow(torch.cat((gt, pred), 2).permute(1, 2, 0))
     plt.show()
     
     # for i in []:
