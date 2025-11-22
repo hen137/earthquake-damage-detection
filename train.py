@@ -62,9 +62,6 @@ def get_data_loaders(args):
 
     trainset = KATE(data, 'train', transforms)
     train_loader = DataLoader(trainset, args.train_batch_size, shuffle=True)
-
-    # testset = KATE(data, 'test', transforms)
-    # test_loader = DataLoader(testset, args.test_batch_size)
     
     validationset = KATE(data, 'validation', transforms)
     validation_loader = DataLoader(validationset, args.val_batch_size)
@@ -84,7 +81,6 @@ def parse_arguments():
     
     parser.add_argument('--epochs', required=False, default=20, type=int)
     parser.add_argument('--train_batch_size', required=False, default=1, type=int)
-    parser.add_argument('--test_batch_size', required=False, default=1, type=int)
     parser.add_argument('--val_batch_size', required=False, default=1, type=int)
     parser.add_argument('--lr', required=False, default=5e-4, type=float)
     
