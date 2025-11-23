@@ -161,7 +161,7 @@ class MaskRCNN():
                 images.append(image.squeeze(0))
                 targets.append(i_targets)
                 
-                pred = self.net(image)[0]
+                pred = self.net(image.to(self.device))[0]
                 
                 thresh_idx = (pred['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
                 predictions.append({'mask': torch.einsum('bcij->cij', (pred['masks'][thresh_idx] > self.args.pixel_confidence_thresh)).bool()})
@@ -170,7 +170,7 @@ class MaskRCNN():
     
     def save_model(self, epoch, val_accuracy, val_F1, val_IoU, date_str):
         checkpoint_dir = self.args.chkpt_dir + '/MaskRCNN'
-        if not os.path.exists(checkpoint_dir): os.mkdir(checkpoint_dir)
+        if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
         
         torch.save(
             {
