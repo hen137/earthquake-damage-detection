@@ -60,11 +60,11 @@ class MaskRCNN():
                 if scaler:
                     scaler.scale(train_loss).backward()
                     scaler.step(self.optimizer)
-                    old_scaler = scaler.get_scale()
+                    # old_scaler = scaler.get_scale()
                     scaler.update()
-                    new_scaler = scaler.get_scale()
-                    if new_scaler >= old_scaler:
-                        self.lr_scheduler.step()
+                    # new_scaler = scaler.get_scale()
+                    # if new_scaler >= old_scaler:
+                    self.lr_scheduler.step()
                 else:
                     train_loss.backward()
                     self.optimizer.step()
