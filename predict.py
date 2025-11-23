@@ -34,8 +34,8 @@ def build_model(args, test_loader):
         net.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=2)
         net.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced, num_classes=2)
         
-        # checkpoint = torch.load(args.chkpt_file, map_location=device)
-        # net.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load(args.chkpt_file, map_location=device, weights_only=False)
+        net.load_state_dict(checkpoint['model_state_dict'])
         
     # elif args.model == 'DeepLabV3+':
     #     from models.DeepLabV3 import DeepLabV3 as TrainerClass
@@ -76,7 +76,7 @@ def parse_arguments():
     parser.add_argument('--pixel_confidence_thresh', required=False, default=0.75, type=float)
     parser.add_argument('--mask_confidence_thresh', required=False, default=0.65, type=float)
 
-    # parser.add_argument('--chkpt_file', required=True)
+    parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/MaskRCNN_e4_OA93.92_F0.017_IoU0.009_23-11-2025_01-03.pth')
 
     return parser.parse_args()
 
@@ -89,7 +89,7 @@ def main():
     
     images, predictions, targets = model.predict()
     
-    idx = 0
+    idx = 15
     
     gt = draw_segmentation_masks(image=images[idx], masks=(targets[idx]['masks'].squeeze(0) > 0), alpha=0.3, colors='red')
     pred = draw_segmentation_masks(image=images[idx], masks=predictions[idx]['mask'], alpha=0.3, colors='blue')

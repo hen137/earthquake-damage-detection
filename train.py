@@ -38,12 +38,17 @@ def build_model(args, train_loader, val_loader):
         raise ValueError(f'Unknown encoder type: {args.encoder}')
 
     # net = Net()
-    optimizer = optim.SGD(
-        [p for p in net.parameters() if p.requires_grad],
-        lr=args.lr,
+    # optimizer = optim.SGD(
+    #     [p for p in net.parameters() if p.requires_grad],
+    #     lr=args.lr,
+    #     weight_decay=args.weight_decay,
+    #     momentum=args.momentum,
+    #     nesterov=True
+    # )
+    optimizer = torch.optim.AdamW(
+        [p for p in net.parameters() if p.requires_grad], 
+        lr=args.lr, 
         weight_decay=args.weight_decay,
-        momentum=args.momentum,
-        nesterov=True
     )
     lr_scheduler = optim.lr_scheduler.OneCycleLR(
         optimizer, 
