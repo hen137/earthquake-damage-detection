@@ -5,19 +5,20 @@ import argparse
 # import tqdm
 import torch
 from torch import optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
+from torchvision import datasets
 from torchvision.transforms import v2
 from datasets import load_dataset
 
 # Custom Imports
-from data.data import KATE
+from data.data import detection_collate
 
 def build_model(args, train_loader, val_loader):
     device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
     
     if args.model == 'SAM2':
         from models.SAM2 import SAM2 as TrainerClass
-        #TODO: setup SAM2
+        
     elif args.model == 'MaskRCNN':
         from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
         # from torchvision.models.detection import MaskRCNN_ResNet50_FPN_V2_Weights
@@ -32,8 +33,11 @@ def build_model(args, train_loader, val_loader):
         dim_reduced = net.roi_heads.mask_predictor.conv5_mask.out_channels
         net.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=2)
         net.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced, num_classes=2)
-    # elif args.model == 'DeepLabV3+':
-    #     from models.DeepLabV3 import DeepLabV3 as TrainerClass
+    # elif args.model == 'UNet':
+    #     from models.UNet import UNET
+    #     from models.UNet import UNet as TrainerClass
+        
+    #     model = UNET(in_channels=3, out_channels=1)
     else:
         raise ValueError(f'Unknown encoder type: {args.encoder}')
 
@@ -67,24 +71,47 @@ def build_model(args, train_loader, val_loader):
     )
     
     return net, model
-    
+
 def get_data_loaders(args):
-    data = load_dataset('CSCRS/kate-cd')
-
-    transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
-
-    trainset = KATE(data, 'train', transforms)
-    train_loader = DataLoader(trainset, args.train_batch_size, shuffle=True)
+    transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True), v2.Resize((512, 512))])
     
-    validationset = KATE(data, 'validation', transforms)
-    validation_loader = DataLoader(validationset, args.val_batch_size)
+    if args.dataset == 'KATE_CD':
+        from data.data import KATE_CD
+        
+        data = load_dataset('CSCRS/kate-cd')
+
+        trainset = KATE_CD(data, 'train', transforms)
+        train_loader = DataLoader(trainset, args.train_batch_size, shuffle=True, collate_fn=detection_collate)
+        
+        validationset = KATE_CD(data, 'validation', transforms)
+        validation_loader = DataLoader(validationset, args.val_batch_size, collate_fn=detection_collate)
+    elif args.dataset == 'KATE_PD':
+        from data.data import KATE_PD
+        
+        data = load_dataset('CSCRS/kate-pd')
+
+        trainset = KATE_PD(data, 'train', transforms)
+        train_loader = DataLoader(trainset, args.train_batch_size, shuffle=True)
+        
+        validationset = KATE_PD(data, 'validation', transforms)
+        validation_loader = DataLoader(validationset, args.val_batch_size)
+    elif args.dataset == 'Flood':
+        from data.data import FLOOD
+        
+        data = FLOOD('./data/flood/rename', transforms=transforms)
+        
+        trainset, validationset = random_split(data, [int(len(data) * 0.8), int(len(data) * 0.2)])
+        
+        train_loader = DataLoader(trainset, args.train_batch_size, shuffle=True, collate_fn=detection_collate)
+        validation_loader = DataLoader(validationset, args.val_batch_size, collate_fn=detection_collate)
     
     return train_loader, validation_loader
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Training")
     
-    parser.add_argument('--model', required=True, choices=['SAM2', 'DeepLabV3+', 'MaskRCNN']) 
+    parser.add_argument('--model', required=True, choices=['SAM2', 'DeepLabV3+', 'MaskRCNN'])
+    parser.add_argument('--dataset', required=True, choices=['KATE_CD', 'KATE_PD', 'Flood'])
     
     parser.add_argument('--gpu', required=False, default=True, action='store_true')
     # parser.add_argument('--multi_gpu', required=False, default=None, type=str)
@@ -95,7 +122,7 @@ def parse_arguments():
     parser.add_argument('--epochs', required=False, default=20, type=int)
     parser.add_argument('--train_batch_size', required=False, default=1, type=int)
     parser.add_argument('--val_batch_size', required=False, default=1, type=int)
-    parser.add_argument('--lr', required=False, default=5e-4, type=float)
+    parser.add_argument('--lr', required=False, default=1e-3, type=float)
     
     parser.add_argument('--weight_decay', required=False, default=5e-4, type=float)
     parser.add_argument('--momentum', required=False, default=0.9, type=float)

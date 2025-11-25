@@ -11,7 +11,6 @@ from torchvision.utils import draw_segmentation_masks
 from datasets import load_dataset
 
 # Custom Imports
-from data.data import KATE
 
 def build_model(args, test_loader):
     device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
@@ -52,12 +51,37 @@ def build_model(args, test_loader):
     return net, model
 
 def get_data_loaders(args):
-    data = load_dataset('CSCRS/kate-cd')
+    if args.dataset == 'KATE_CD':
+        from data.data import KATE_CD
+        data = load_dataset('CSCRS/kate-cd')
 
-    transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
+        transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
 
-    testset = KATE(data, 'test', transforms)
-    test_loader = DataLoader(testset, args.test_batch_size)
+        testset = KATE_CD(data, 'test', transforms)
+        test_loader = DataLoader(testset, args.test_batch_size)
+    elif args.dataset == 'KATE_PD':
+        from data.data import KATE_PD
+        data = load_dataset('CSCRS/kate-pd')
+
+        transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
+
+        testset = KATE_PD(data, 'test', transforms)
+        test_loader = DataLoader(testset, args.test_batch_size)
+    # elif args.dataset == 'Flood':
+    #     from data.data import FLOOD
+    #     import torchvision.transforms.functional as TF
+
+    #     class FloodTransform():
+    #         def __call__(self, img):
+    #             img = TF.to_image(img)
+    #             img = TF.resize(img, (512, 512))
+    #             img = TF.to_dtype(img, torch.float32, scale=True)
+    #             return img
+
+    #     transforms = FloodTransform()
+
+    #     testset = FLOOD(data_dir='./data/flood/test', transforms=transforms)
+    #     test_loader = DataLoader(testset, args.test_batch_size)
     
     return test_loader
 
@@ -65,6 +89,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Predicting")
 
     parser.add_argument('--model', required=True, choices=['SAM2', 'DeepLabV3+', 'MaskRCNN']) 
+    parser.add_argument('--dataset', required=True, choices=['KATE_CD', 'KATE_PD', 'Flood'])
 
     parser.add_argument('--gpu', required=False, default=True, action='store_true')
     # parser.add_argument('--multi_gpu', required=False, default=None, type=str)
@@ -76,7 +101,7 @@ def parse_arguments():
     parser.add_argument('--pixel_confidence_thresh', required=False, default=0.75, type=float)
     parser.add_argument('--mask_confidence_thresh', required=False, default=0.65, type=float)
 
-    parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/MaskRCNN_e4_OA93.92_F0.017_IoU0.009_23-11-2025_01-03.pth')
+    parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/KATE_CD/MaskRCNN_e24_OA96.81_F0.156_IoU0.110_25-11-2025_13-21.pth')
 
     return parser.parse_args()
 
@@ -89,17 +114,16 @@ def main():
     
     images, predictions, targets = model.predict()
     
-    idx = 15
+    # idx = 15
     
-    gt = draw_segmentation_masks(image=images[idx], masks=(targets[idx]['masks'].squeeze(0) > 0), alpha=0.3, colors='red')
-    pred = draw_segmentation_masks(image=images[idx], masks=predictions[idx]['mask'], alpha=0.3, colors='blue')
+    for i in range(len(images)):
+        gt = draw_segmentation_masks(image=images[i], masks=(targets[i]['masks'].squeeze(0) > 0), alpha=0.3, colors='red')
+        pred = draw_segmentation_masks(image=images[i], masks=predictions[i]['mask'], alpha=0.3, colors='blue')
+        
+        # plt.imshow(gt.permute(1, 2, 0))
+        plt.imshow(torch.cat((gt, pred), 2).permute(1, 2, 0))
+        plt.show()
     
-    # plt.imshow(gt.permute(1, 2, 0))
-    plt.imshow(torch.cat((gt, pred), 2).permute(1, 2, 0))
-    plt.show()
-    
-    # for i in []:
-    #     ...
     
 if __name__ == '__main__':
     main()
