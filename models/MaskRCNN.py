@@ -4,6 +4,7 @@ import os, time
 # Library Imports
 # import tqdm
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 # Custom Imports
@@ -50,12 +51,24 @@ class MaskRCNN():
             
             for i, (images, targets) in enumerate(self.train_loader):
                 images = images.to(self.device)
-                targets = {key: value.to(self.device) for key, value in zip(targets.keys(), targets.values())}
+                if isinstance(targets, list):
+                    for sample in targets:
+                        for key in list(sample.keys()):
+                            val = sample[key]
+                            if isinstance(val, torch.Tensor):
+                                sample[key] = val.to(self.device)
+                elif isinstance(targets, dict):
+                    for key in list(targets.keys()):
+                        val = targets[key]
+                        if isinstance(val, torch.Tensor):
+                            targets[key] = val.to(self.device)
+                
                 
                 self.net.train()
+                self.optimizer.zero_grad()
                 with torch.autocast(self.device):
-                    losses = self.net(images, [targets])
-                    train_loss = sum([loss for loss in losses.values()]) # assumes batch_size is 1
+                    losses = self.net(images, targets)
+                    train_loss = sum([loss for loss in losses.values()])
 
                 if scaler:
                     scaler.scale(train_loss).backward()
@@ -64,13 +77,12 @@ class MaskRCNN():
                     scaler.update()
                     # new_scaler = scaler.get_scale()
                     # if new_scaler >= old_scaler:
-                    self.lr_scheduler.step()
                 else:
                     train_loss.backward()
                     self.optimizer.step()
-                    self.lr_scheduler.step()
-                    self.optimizer.zero_grad()
 
+                self.lr_scheduler.step()
+                
                 epoch_loss += train_loss.item()
                 
                 if i % self.args.print_freq == 0:
@@ -80,11 +92,11 @@ class MaskRCNN():
                         
                         thresh_idx = (predictions[0]['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
                         mask = torch.einsum('bcij->cij', (predictions[0]['masks'][thresh_idx] > self.args.pixel_confidence_thresh).float()) # assumes batch_size is 1
-                        accuracy, _, _, _, _ = binary_accuracy(mask, targets['masks'].squeeze(0))
+                        accuracy, _, _, f1, _ = binary_accuracy(mask, targets[0]['masks'].squeeze(0))
                         
                         epoch_accuracy += accuracy
                         
-                    print(f'[Train] [Epoch {epoch + 1}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, Accuracy {accuracy * 100:.2f}%]')
+                    print(f'[Train] [Epoch {epoch + 1}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, Accuracy {accuracy * 100:.2f}%, F1 {f1:.3f}]')
                     
             epoch_loss /= len(self.train_loader)
             epoch_accuracy /= len(self.train_loader)
@@ -103,7 +115,7 @@ class MaskRCNN():
                 
                 if epoch_accuracy > best_epoch_accuracy: best_epoch_accuracy = epoch_accuracy
                 
-                print(f'[Epoch {epoch + 1}/{self.args.epochs}, Exec Time {time.time() - begin_time:.2f}s] [Best] [vAccuracy {best_validation_accuracy * 100:.2f}%, vLoss {best_validation_loss:.4f}, F1 {best_F1:.3f}, IoU {best_IoU:.3f}]')
+                print(f'[Epoch {epoch}/{self.args.epochs}, Exec Time {time.time() - begin_time:.2f}s] [Best] [vAccuracy {best_validation_accuracy * 100:.2f}%, vLoss {best_validation_loss:.4f}, F1 {best_F1:.3f}, IoU {best_IoU:.3f}]')
 
     def validate(self, epoch):
         if not self.validation_loader:
@@ -123,16 +135,28 @@ class MaskRCNN():
         with torch.no_grad():
             for i, (image, targets) in enumerate(self.validation_loader):
                 image = image.to(self.device)
-                targets = {key: value.to(self.device) for key, value in zip(targets.keys(), targets.values())}
+                if isinstance(targets, list):
+                    for sample in targets:
+                        for key in list(sample.keys()):
+                            val = sample[key]
+                            if isinstance(val, torch.Tensor):
+                                sample[key] = val.to(self.device)
+                elif isinstance(targets, dict):
+                    # sometimes targets are a single dict (batch_size=1),
+                    # handle that case too
+                    for key in list(targets.keys()):
+                        val = targets[key]
+                        if isinstance(val, torch.Tensor):
+                            targets[key] = val.to(self.device)
                 
                 predictions = self.net(image)
                 
                 thresh_idx = (predictions[0]['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
                 mask = torch.einsum('bcij->cij', predictions[0]['masks'][thresh_idx])
-                loss = F.binary_cross_entropy_with_logits(mask, targets['masks'].squeeze(0).float())
+                loss = F.binary_cross_entropy_with_logits(mask, targets[0]['masks'].float())
                 
                 mask = torch.einsum('bcij->cij', (predictions[0]['masks'][thresh_idx] > self.args.pixel_confidence_thresh).float())
-                acc, precision, recall, f1, iou = binary_accuracy(mask, targets['masks'].squeeze(0))
+                acc, precision, recall, f1, iou = binary_accuracy(mask, targets[0]['masks'].squeeze(0))
                 
                 val_loss += loss.item()
                 accuracy += acc
@@ -144,7 +168,7 @@ class MaskRCNN():
             F1 /= len(self.validation_loader)
             IoU /= len(self.validation_loader)
         
-        print(f'[Validation] [Epoch {epoch + 1}, Exec Time {time.time() - start_time:.2f}s] [Loss {val_loss:.4f}, Accuracy {accuracy * 100:.2f}%, F1 {F1:.3f}, IoU {IoU:.3f}]')
+        print(f'[Validation] [Epoch {epoch}, Exec Time {time.time() - start_time:.2f}s] [Loss {val_loss:.4f}, Accuracy {accuracy * 100:.2f}%, F1 {F1:.3f}, IoU {IoU:.3f}]')
 
         return val_loss, accuracy, F1, IoU
     
@@ -169,7 +193,7 @@ class MaskRCNN():
         return images, predictions, targets
     
     def save_model(self, epoch, val_accuracy, val_F1, val_IoU, date_str):
-        checkpoint_dir = self.args.chkpt_dir + '/MaskRCNN'
+        checkpoint_dir = self.args.chkpt_dir + '/MaskRCNN' + f'/{self.args.dataset}'
         if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
         
         torch.save(
