@@ -105,7 +105,7 @@ class MaskRCNN():
             if epoch % self.args.val_freq == 0:
                 val_loss, val_accuracy, val_F1, val_IoU = self.validate(epoch)
                 
-                if val_F1 > best_F1: # Consider other metrics to determine 'best'
+                if val_F1 > best_F1:
                     best_validation_loss = val_loss
                     best_validation_accuracy = val_accuracy
                     best_F1 = val_F1
@@ -142,8 +142,6 @@ class MaskRCNN():
                             if isinstance(val, torch.Tensor):
                                 sample[key] = val.to(self.device)
                 elif isinstance(targets, dict):
-                    # sometimes targets are a single dict (batch_size=1),
-                    # handle that case too
                     for key in list(targets.keys()):
                         val = targets[key]
                         if isinstance(val, torch.Tensor):
@@ -156,7 +154,7 @@ class MaskRCNN():
                 loss = F.binary_cross_entropy_with_logits(mask, targets[0]['masks'].float())
                 
                 mask = torch.einsum('bcij->cij', (predictions[0]['masks'][thresh_idx] > self.args.pixel_confidence_thresh).float())
-                acc, precision, recall, f1, iou = binary_accuracy(mask, targets[0]['masks'].squeeze(0))
+                acc, _, _, f1, iou = binary_accuracy(mask, targets[0]['masks'].squeeze(0))
                 
                 val_loss += loss.item()
                 accuracy += acc
