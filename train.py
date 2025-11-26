@@ -98,11 +98,10 @@ def get_data_loaders(args):
     elif args.dataset == 'Flood':
         from data.data import FLOOD
         
-        data = FLOOD('./data/flood/rename', transforms=transforms)
-        
-        trainset, validationset = random_split(data, [int(len(data) * 0.8), int(len(data) * 0.2)])
-        
+        trainset = FLOOD('./data/flood/train', transforms=transforms)
         train_loader = DataLoader(trainset, args.train_batch_size, shuffle=True, collate_fn=detection_collate)
+        
+        validationset = FLOOD('./data/flood/validation', transforms=transforms)
         validation_loader = DataLoader(validationset, args.val_batch_size, collate_fn=detection_collate)
     
     return train_loader, validation_loader
