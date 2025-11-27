@@ -141,6 +141,7 @@ class MaskRCNN():
                             val = sample[key]
                             if isinstance(val, torch.Tensor):
                                 sample[key] = val.to(self.device)
+                                
                 elif isinstance(targets, dict):
                     for key in list(targets.keys()):
                         val = targets[key]
@@ -179,14 +180,16 @@ class MaskRCNN():
         
         self.net.eval()
         with torch.no_grad():
-            for i, (image, i_targets) in enumerate(self.test_loader):
-                images.append(image.squeeze(0))
-                targets.append(i_targets)
+            for i, (image_batch, targets_batch) in enumerate(self.test_loader):
+                preds = self.net(image_batch.to(self.device))
                 
-                pred = self.net(image.to(self.device))[0]
-                
-                thresh_idx = (pred['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
-                predictions.append({'mask': torch.einsum('bcij->cij', (pred['masks'][thresh_idx] > self.args.pixel_confidence_thresh)).bool()})
+                for image, target in zip(image_batch, targets_batch):
+                    images.append(image.cpu())
+                    targets.append(target)
+                    
+                for pred in preds:
+                    thresh_idx = (pred['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
+                    predictions.append({'mask': torch.einsum('bcij->cij', (pred['masks'][thresh_idx] > self.args.pixel_confidence_thresh)).bool().cpu()})
         
         return images, predictions, targets
     
