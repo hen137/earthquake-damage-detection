@@ -41,7 +41,6 @@ def build_model(args, train_loader, val_loader):
     else:
         raise ValueError(f'Unknown encoder type: {args.encoder}')
 
-    # net = Net()
     # optimizer = optim.SGD(
     #     [p for p in net.parameters() if p.requires_grad],
     #     lr=args.lr,
