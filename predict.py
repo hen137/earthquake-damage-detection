@@ -4,10 +4,8 @@ import argparse
 # Library Imports
 # import tqdm
 import torch
-import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision.transforms import v2
-from torchvision.utils import draw_segmentation_masks
 from datasets import load_dataset
 
 # Custom Imports
@@ -38,6 +36,7 @@ def build_model(args, test_loader):
         
         checkpoint = torch.load(args.chkpt_file, map_location=device, weights_only=False)
         net.load_state_dict(checkpoint['model_state_dict'])
+        
     # elif args.model == 'DeepLabV3+':
     #     from models.DeepLabV3 import DeepLabV3 as TrainerClass
     
@@ -79,6 +78,9 @@ def get_data_loaders(args):
         
         testset = FLOOD(data_dir='./data/flood/test', transforms=transforms)
         test_loader = DataLoader(testset, args.test_batch_size, collate_fn=detection_collate)
+    
+    else:
+        raise ValueError(f'Unknown dataset type: {args.dataset}')
     
     return test_loader
 

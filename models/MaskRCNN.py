@@ -25,11 +25,11 @@ class MaskRCNN():
 
     def train(self):
         if not self.train_loader:
-            raise Exception(f'No value provided for train_loader')
+            raise ValueError(f'No value provided for train_loader')
         elif not self.optimizer:
-            raise Exception(f'No value provided for optimizer')
+            raise ValueError(f'No value provided for optimizer')
         elif not self.lr_scheduler:
-            raise Exception(f'No value provided for lr_scheduler')
+            raise ValueError(f'No value provided for lr_scheduler')
         
         best_epoch_accuracy = 0.0
         best_validation_accuracy = 0.0
@@ -62,7 +62,6 @@ class MaskRCNN():
                         val = targets[key]
                         if isinstance(val, torch.Tensor):
                             targets[key] = val.to(self.device)
-                
                 
                 self.net.train()
                 self.optimizer.zero_grad()
@@ -119,7 +118,7 @@ class MaskRCNN():
 
     def validate(self, epoch):
         if not self.validation_loader:
-            raise Exception(f'No value provided for validation_loader')
+            raise ValueError(f'No value provided for validation_loader')
         
         # the following code is written assuming that batch size is 1
         if self.args.gpu: torch.cuda.empty_cache()
@@ -173,7 +172,8 @@ class MaskRCNN():
     
     def predict(self):
         if not self.test_loader:
-            raise Exception(f'No value provided for test_loader')
+            raise ValueError(f'No value provided for test_loader')
+        
         images = []
         targets = []
         predictions = []

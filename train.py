@@ -5,8 +5,7 @@ import argparse
 # import tqdm
 import torch
 from torch import optim
-from torch.utils.data import DataLoader, random_split
-from torchvision import datasets
+from torch.utils.data import DataLoader
 from torchvision.transforms import v2
 from datasets import load_dataset
 
@@ -33,11 +32,13 @@ def build_model(args, train_loader, val_loader):
         dim_reduced = net.roi_heads.mask_predictor.conv5_mask.out_channels
         net.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=2)
         net.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced, num_classes=2)
+        
     # elif args.model == 'UNet':
     #     from models.UNet import UNET
     #     from models.UNet import UNet as TrainerClass
         
     #     model = UNET(in_channels=3, out_channels=1)
+    
     else:
         raise ValueError(f'Unknown encoder type: {args.encoder}')
 
@@ -84,16 +85,18 @@ def get_data_loaders(args):
         
         validationset = KATE_CD(data, 'validation', transforms)
         validation_loader = DataLoader(validationset, args.val_batch_size, collate_fn=detection_collate)
+        
     elif args.dataset == 'KATE_PD':
         from data.data import KATE_PD
         
         data = load_dataset('CSCRS/kate-pd')
 
         trainset = KATE_PD(data, 'train', transforms)
-        train_loader = DataLoader(trainset, args.train_batch_size, shuffle=True)
+        train_loader = DataLoader(trainset, args.train_batch_size, shuffle=True, collate_fn=detection_collate)
         
         validationset = KATE_PD(data, 'validation', transforms)
-        validation_loader = DataLoader(validationset, args.val_batch_size)
+        validation_loader = DataLoader(validationset, args.val_batch_size, collate_fn=detection_collate)
+        
     elif args.dataset == 'Flood':
         from data.data import FLOOD
         
@@ -102,6 +105,9 @@ def get_data_loaders(args):
         
         validationset = FLOOD('./data/flood/validation', transforms=transforms)
         validation_loader = DataLoader(validationset, args.val_batch_size, collate_fn=detection_collate)
+    
+    else:
+        raise ValueError(f'Unknown dataset type: {args.dataset}')
     
     return train_loader, validation_loader
 
