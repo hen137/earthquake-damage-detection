@@ -11,6 +11,8 @@ from torchvision.utils import draw_segmentation_masks
 from datasets import load_dataset
 
 # Custom Imports
+from data.data import detection_collate
+from utils.utils import visualize_predictions
 
 def build_model(args, test_loader):
     device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
@@ -18,6 +20,7 @@ def build_model(args, test_loader):
     if args.model == 'SAM2':
         from models.SAM2 import SAM2 as TrainerClass
         #TODO: setup SAM2
+        
     elif args.model == 'MaskRCNN':
         from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
         # from torchvision.models.detection import MaskRCNN_ResNet50_FPN_V2_Weights
@@ -37,6 +40,7 @@ def build_model(args, test_loader):
         net.load_state_dict(checkpoint['model_state_dict'])
     # elif args.model == 'DeepLabV3+':
     #     from models.DeepLabV3 import DeepLabV3 as TrainerClass
+    
     else:
         raise ValueError(f'Unknown encoder type: {args.model}')
     
@@ -57,7 +61,8 @@ def get_data_loaders(args):
         transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
 
         testset = KATE_CD(data, 'test', transforms)
-        test_loader = DataLoader(testset, args.test_batch_size)
+        test_loader = DataLoader(testset, args.test_batch_size, collate_fn=detection_collate)
+        
     elif args.dataset == 'KATE_PD':
         from data.data import KATE_PD
         data = load_dataset('CSCRS/kate-pd')
@@ -65,21 +70,22 @@ def get_data_loaders(args):
         transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True)])
 
         testset = KATE_PD(data, 'test', transforms)
-        test_loader = DataLoader(testset, args.test_batch_size)
+        test_loader = DataLoader(testset, args.test_batch_size, collate_fn=detection_collate)
+        
     elif args.dataset == 'Flood':
         from data.data import FLOOD
 
         transforms = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32, scale=True), v2.Resize((512, 512))])
         
         testset = FLOOD(data_dir='./data/flood/test', transforms=transforms)
-        test_loader = DataLoader(testset, args.test_batch_size)
+        test_loader = DataLoader(testset, args.test_batch_size, collate_fn=detection_collate)
     
     return test_loader
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Predicting")
 
-    parser.add_argument('--model', required=True, choices=['SAM2', 'DeepLabV3+', 'MaskRCNN']) 
+    parser.add_argument('--model', required=True, choices=['SAM2', 'MaskRCNN']) 
     parser.add_argument('--dataset', required=True, choices=['KATE_CD', 'KATE_PD', 'Flood'])
 
     parser.add_argument('--gpu', required=False, default=True, action='store_true')
@@ -93,8 +99,10 @@ def parse_arguments():
     parser.add_argument('--mask_confidence_thresh', required=False, default=0.65, type=float)
 
     # parser.add_argument('--chkpt_file', required=True)
-    # parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/KATE_CD/MaskRCNN_e10_OA96.37_F0.266_IoU0.186_25-11-2025_02-50.pth')
-    parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/Flood/MaskRCNN_e32_OA84.26_F0.763_IoU0.644_25-11-2025_16-21.pth')
+    parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/KATE_CD/MaskRCNN_e10_OA96.37_F0.266_IoU0.186_25-11-2025_02-50.pth')
+    # parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/Flood/MaskRCNN_e32_OA84.26_F0.763_IoU0.644_25-11-2025_16-21.pth')
+    
+    parser.add_argument('--output_frmt', required=True, choices=['overlay', 'rand_5'])
 
     return parser.parse_args()
 
@@ -107,13 +115,7 @@ def main():
     
     images, predictions, targets = model.predict()
     
-    for i in range(len(images)):
-        gt = draw_segmentation_masks(image=images[i], masks=(targets[i]['masks'].squeeze(0) > 0), alpha=0.3, colors='red')
-        pred = draw_segmentation_masks(image=images[i], masks=predictions[i]['mask'], alpha=0.3, colors='blue')
-        
-        plt.imshow(torch.cat((gt, pred), 2).permute(1, 2, 0))
-        plt.show()
-    
+    visualize_predictions(args.output_frmt, images, predictions, targets)
     
 if __name__ == '__main__':
     main()
