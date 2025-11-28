@@ -47,7 +47,7 @@ class SAM2():
         return images, predictions, targets
     
     def save_model(self, epoch, val_accuracy, val_F1, val_IoU, date_str):
-        checkpoint_dir = self.args.chkpt_dir + '/MaskRCNN' + f'/{self.args.dataset}'
+        checkpoint_dir = self.args.chkpt_dir + '/SAM2' + f'/{self.args.dataset}'
         if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
         
         torch.save(
