@@ -18,11 +18,19 @@ def build_model(args, train_loader, val_loader):
     if args.model == 'SAM2':
         from models.SAM2 import SAM2 as TrainerClass
         
+        sam2_checkpoint = "models/configs/sam2_hiera_small.pt" # path to model weight
+        model_cfg = "models/configs/sam2_hiera_s.yaml" # model config
+        sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=args.device) # load model
+        predictor = SAM2ImagePredictor(sam2_model) # load net
+        
+        net = predictor
+
     elif args.model == 'MaskRCNN':
         from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
         # from torchvision.models.detection import MaskRCNN_ResNet50_FPN_V2_Weights
         from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
         from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
+        
         from models.MaskRCNN import MaskRCNN as TrainerClass
         
         net = maskrcnn_resnet50_fpn_v2(weights='DEFAULT')
@@ -117,7 +125,7 @@ def parse_arguments():
     parser.add_argument('--model', required=True, choices=['SAM2', 'DeepLabV3+', 'MaskRCNN'])
     parser.add_argument('--dataset', required=True, choices=['KATE_CD', 'KATE_PD', 'Flood'])
     
-    parser.add_argument('--gpu', required=False, default=True, action='store_true')
+    parser.add_argument('--device', required=False, default=True, action='store_true')
     # parser.add_argument('--multi_gpu', required=False, default=None, type=str)
     # parser.add_argument('--dev_id', required=False, default=0, type=int)
     # parser.add_argument('--data_loader_num_workers', required=False, default=16, type=int)
