@@ -44,7 +44,7 @@ class MaskRCNN():
         scaler = torch.amp.GradScaler() if self.device == 'cuda' and self.args.use_scaler else None
         
         for epoch in range(self.args.epochs):
-            if self.args.gpu: torch.cuda.empty_cache()
+            if self.args.device: torch.cuda.empty_cache()
             
             epoch_loss = 0  
             epoch_accuracy = 0 
@@ -57,6 +57,7 @@ class MaskRCNN():
                             val = sample[key]
                             if isinstance(val, torch.Tensor):
                                 sample[key] = val.to(self.device)
+                                
                 elif isinstance(targets, dict):
                     for key in list(targets.keys()):
                         val = targets[key]
@@ -121,7 +122,7 @@ class MaskRCNN():
             raise ValueError(f'No value provided for validation_loader')
         
         # the following code is written assuming that batch size is 1
-        if self.args.gpu: torch.cuda.empty_cache()
+        if self.args.device: torch.cuda.empty_cache()
         
         start_time = time.time()
 
