@@ -9,17 +9,24 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import v2
 from datasets import load_dataset
 
+from sam2.build_sam import build_sam2
+from sam2.sam2_image_predictor import SAM2ImagePredictor
+
 # Custom Imports
 from data.data import detection_collate
 
 def build_model(args, train_loader, val_loader):
-    device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
+    device = 'cuda' if args.device and torch.cuda.is_available() else 'cpu'
     
     if args.model == 'SAM2':
         from models.SAM2 import SAM2 as TrainerClass
         
-        sam2_checkpoint = "models/configs/sam2_hiera_small.pt" # path to model weight
-        model_cfg = "models/configs/sam2_hiera_s.yaml" # model config
+        """
+        Make sure that 'site-packages/sam2/sam2_hiera_X.yaml' gets renamed to 'sam2.1_hiera_X.yaml'
+        and the contents gets renamed to reflect the 2.1 version, as the provided config files are for SAM2.0
+        """
+        sam2_checkpoint = "./models/SAM2.1_files/sam2.1_hiera_small.pt" # path to model weight
+        model_cfg = "sam2.1_hiera_s.yaml" # model config
         sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=args.device) # load model
         predictor = SAM2ImagePredictor(sam2_model) # load net
         
@@ -125,7 +132,7 @@ def parse_arguments():
     parser.add_argument('--model', required=True, choices=['SAM2', 'DeepLabV3+', 'MaskRCNN'])
     parser.add_argument('--dataset', required=True, choices=['KATE_CD', 'KATE_PD', 'Flood'])
     
-    parser.add_argument('--device', required=False, default=True, action='store_true')
+    parser.add_argument('--device', required=False, default='gpu', action='store_true')
     # parser.add_argument('--multi_gpu', required=False, default=None, type=str)
     # parser.add_argument('--dev_id', required=False, default=0, type=int)
     # parser.add_argument('--data_loader_num_workers', required=False, default=16, type=int)

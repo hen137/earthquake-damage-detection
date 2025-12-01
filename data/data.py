@@ -87,14 +87,14 @@ class FLOOD(Dataset):
     image = decode_image(self.image_dir + f'/{idx}.jpg', mode='RGB')
     image = self.transforms(image)
 
-    masks = decode_image(self.mask_dir + f'/{idx}.png', mode='GRAY')
-    masks = self.transforms(masks)
-    masks = (masks > 0.5).to(torch.uint8)
+    mask = decode_image(self.mask_dir + f'/{idx}.png', mode='GRAY')
+    mask = self.transforms(mask)
+    mask = (mask > 0.5).to(torch.uint8)
 
-    bboxes = masks_to_boxes(masks)
-    labels = torch.tensor([1], dtype=torch.int64)
+    bbox = masks_to_boxes(mask)
+    label = torch.tensor([1], dtype=torch.int64)
 
-    return image, {'boxes': bboxes, 'masks': masks, 'labels': labels}
+    return image, {'boxes': bbox, 'masks': mask, 'labels': label}
 
 # Functions
 def detection_collate(batch):
