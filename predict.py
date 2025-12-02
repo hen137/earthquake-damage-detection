@@ -8,6 +8,9 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import v2
 from datasets import load_dataset
 
+from sam2.build_sam import build_sam2_hf
+from sam2.sam2_image_predictor import SAM2ImagePredictor
+
 # Custom Imports
 from data.data import detection_collate
 from utils.utils import visualize_predictions
@@ -17,7 +20,14 @@ def build_model(args, test_loader):
     
     if args.model == 'SAM2':
         from models.SAM2 import SAM2 as TrainerClass
-        #TODO: setup SAM2
+        
+        sam2_model = build_sam2_hf("facebook/sam2.1-hiera-small", device=device)
+        predictor = SAM2ImagePredictor(sam2_model) # load net
+        
+        net = predictor
+        
+        checkpoint = torch.load(args.chkpt_file, map_location=device, weights_only=False)
+        predictor.model.load_state_dict(checkpoint['model_state_dict'])
         
     elif args.model == 'MaskRCNN':
         from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
@@ -100,8 +110,8 @@ def parse_arguments():
     parser.add_argument('--pixel_confidence_thresh', required=False, default=0.75, type=float)
     parser.add_argument('--mask_confidence_thresh', required=False, default=0.65, type=float)
 
-    # parser.add_argument('--chkpt_file', required=True)
-    parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/KATE_CD/MaskRCNN_e10_OA96.37_F0.266_IoU0.186_25-11-2025_02-50.pth')
+    parser.add_argument('--chkpt_file', required=True)
+    # parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/KATE_CD/MaskRCNN_e10_OA96.37_F0.266_IoU0.186_25-11-2025_02-50.pth')
     # parser.add_argument('--chkpt_file', required=False, default='./models/checkpoints/MaskRCNN/Flood/MaskRCNN_e32_OA84.26_F0.763_IoU0.644_25-11-2025_16-21.pth')
     
     parser.add_argument('--output_frmt', required=True, choices=['overlay', 'rand_5'])

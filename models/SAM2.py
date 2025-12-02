@@ -32,6 +32,10 @@ class SAM2():
         elif not self.lr_scheduler:
             raise ValueError(f'No value provided for lr_scheduler')
         
+        '''
+        This code is written assuming a batch size of 1 for test loader
+        '''
+        
         best_epoch_accuracy = 0.0
         best_validation_accuracy = 0.0
         best_validation_loss = 0
@@ -152,6 +156,10 @@ class SAM2():
         if not self.validation_loader:
             raise ValueError(f'No value provided for validation_loader')
         
+        '''
+        This code is written assuming a batch size of 1 for test loader
+        '''
+        
         if self.args.device: torch.cuda.empty_cache()
         
         start_time = time.time()
@@ -212,6 +220,7 @@ class SAM2():
                 #     occupancy_mask[mask] = 1
                 mask = torch.einsum('cij->ij', torch.tensor(masks)).to(self.device)
                 loss = F.binary_cross_entropy_with_logits(mask, targets[0]['masks'].squeeze(0).float())
+                
                 mask = (torch.einsum('cij->ij', torch.tensor(masks)) > 0.5).to(self.device)
                 acc, _, _, f1, iou = binary_accuracy(mask, targets[0]['masks'].squeeze(0))
                 
@@ -230,7 +239,29 @@ class SAM2():
         return val_loss, accuracy, F1, IoU
     
     def predict(self):
+        if not self.test_loader:
+            raise ValueError(f'No value provided for test_loader')
         
+        '''
+        This code is written assuming a batch size of 1 for test loader
+        '''
+        
+        images = []
+        targets = []
+        predictions = []
+        
+        # self.predictor.model.eval()
+        with torch.no_grad():
+            for i, (image_batch, targets_batch) in enumerate(self.test_loader):
+                self.predictor.set_image(image_batch[0].permute(1, 2, 0).cpu().numpy()) # apply SAM image encoder to the image
+                
+                masks, scores, logits = self.predictor.predict()
+                
+                for image, target in zip(image_batch, targets_batch):
+                    images.append(image.cpu())
+                    targets.append(target)
+                    
+                predictions.append({'mask': (torch.einsum('cij->ij', torch.tensor(masks)) > 0.5).cpu()})
         
         return images, predictions, targets
     
