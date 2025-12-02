@@ -10,6 +10,7 @@ from torchvision.transforms import v2
 from datasets import load_dataset
 
 from sam2.build_sam import build_sam2
+from sam2.build_sam import build_sam2_hf
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 # Custom Imports
@@ -21,16 +22,18 @@ def build_model(args, train_loader, val_loader):
     if args.model == 'SAM2':
         from models.SAM2 import SAM2 as TrainerClass
         
-        """
-        Make sure that 'site-packages/sam2/sam2_hiera_X.yaml' gets renamed to 'sam2.1_hiera_X.yaml'
-        and the contents gets renamed to reflect the 2.1 version, as the provided config files are for SAM2.0
-        """
-        sam2_checkpoint = "./models/SAM2.1_files/sam2.1_hiera_small.pt" # path to model weight
-        model_cfg = "sam2.1_hiera_s.yaml" # model config
-        sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=args.device) # load model
+        # """
+        # Make sure that 'site-packages/sam2/sam2_hiera_X.yaml' gets renamed to 'sam2.1_hiera_X.yaml'
+        # and the contents gets renamed to reflect the 2.1 version, as the provided config files are for SAM2.0
+        # """
+        # sam2_checkpoint = "configs/sam2.1/sam2.1_hiera_s.yaml" # path to model weight
+        # model_cfg = "sam2.1_hiera_s.yaml" # model config
+        # sam2_model = build_sam2(model_cfg, sam2_checkpoint, device=args.device) # load model
+        sam2_model = build_sam2_hf("facebook/sam2.1-hiera-small", device=device)
         predictor = SAM2ImagePredictor(sam2_model) # load net
         
         net = predictor
+        grad_params = [p for p in predictor.model.parameters() if p.requires_grad]
 
     elif args.model == 'MaskRCNN':
         from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
@@ -48,6 +51,7 @@ def build_model(args, train_loader, val_loader):
         net.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=2)
         net.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced, num_classes=2)
         
+        grad_params = [p for p in net.parameters() if p.requires_grad]
     # elif args.model == 'UNet':
     #     from models.UNet import UNET
     #     from models.UNet import UNet as TrainerClass
@@ -65,7 +69,7 @@ def build_model(args, train_loader, val_loader):
     #     nesterov=True
     # )
     optimizer = torch.optim.AdamW(
-        [p for p in net.parameters() if p.requires_grad], 
+        grad_params, 
         lr=args.lr, 
         weight_decay=args.weight_decay,
     )
@@ -168,6 +172,7 @@ def main():
 
     print(f'Training {args.model} started')
     model.train()
+    # model.validate(0)
     print(f'Training {args.model} finished')
 
 if __name__ == '__main__':

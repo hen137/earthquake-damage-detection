@@ -6,6 +6,7 @@ import os, time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 # Custom Imports
 from utils.utils import binary_accuracy
@@ -76,7 +77,7 @@ class SAM2():
                     # image, mask, input_point, input_label = read_batch(data) # load data batch
                     # if mask.shape[0] == 0: continue # ignore empty batches
                     
-                    self.predictor.set_image(images[0]) # apply SAM image encoder to the image
+                    self.predictor.set_image(images[0].permute(1, 2, 0).cpu().numpy()) # apply SAM image encoder to the image
                     
                     # mask_input, unnorm_coords, labels, unnorm_box = self.predictor._prep_prompts(input_point, input_label, box=None, mask_logits=None, normalize_coords=True)
                     # sparse_embeddings, dense_embeddings = self.predictor.model.sam_prompt_encoder(points=(unnorm_coords, labels),boxes=None,masks=None)
@@ -121,38 +122,110 @@ class SAM2():
                         
                         # thresh_idx = (predictions[0]['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
                         # mask = torch.einsum('bcij->cij', (predictions[0]['masks'][thresh_idx] > self.args.pixel_confidence_thresh).float()) # assumes batch_size is 1
-                        # accuracy, _, _, f1, _ = binary_accuracy(mask, targets[0]['masks'].squeeze(0))
-                        
-                        # epoch_accuracy += accuracy
-                        
-                    print(f'[Train] [Epoch {epoch + 1}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, IoU {iou:.3f}]')
-                    # print(f'[Train] [Epoch {epoch + 1}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, Accuracy {accuracy * 100:.2f}%, F1 {f1:.3f}]')
+                    accuracy, _, _, f1, _ = binary_accuracy(prd_mask, targets[0]['masks'].squeeze(0))
                     
+                    epoch_accuracy += accuracy
+                
+                    # print(f'[Train] [Epoch {epoch + 1}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, IoU {iou.item():.3f}]')
+                    print(f'[Train] [Epoch {epoch + 1}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, Accuracy {accuracy * 100:.2f}%, F1 {f1:.3f}]')
+            
             epoch_loss /= len(self.train_loader)
             epoch_accuracy /= len(self.train_loader)
             
             # VALIDATE
-            # if epoch % self.args.val_freq == 0:
-            #     val_loss, val_accuracy, val_F1, val_IoU = self.validate(epoch)
+            if epoch % self.args.val_freq == 0:
+                val_loss, val_accuracy, val_F1, val_IoU = self.validate(epoch)
                 
-            #     if val_F1 > best_F1:
-            #         best_validation_loss = val_loss
-            #         best_validation_accuracy = val_accuracy
-            #         best_F1 = val_F1
-            #         best_IoU = val_IoU
+                if val_F1 > best_F1:
+                    best_validation_loss = val_loss
+                    best_validation_accuracy = val_accuracy
+                    best_F1 = val_F1
+                    best_IoU = val_IoU
                     
-            #         self.save_model(epoch, val_accuracy, val_F1, val_IoU, date_str)
+                    self.save_model(epoch, val_accuracy, val_F1, val_IoU, date_str)
                 
-            #     if epoch_accuracy > best_epoch_accuracy: best_epoch_accuracy = epoch_accuracy
+                if epoch_accuracy > best_epoch_accuracy: best_epoch_accuracy = epoch_accuracy
                 
-            #     print(f'[Epoch {epoch}/{self.args.epochs}, Exec Time {time.time() - begin_time:.2f}s] [Best] [vAccuracy {best_validation_accuracy * 100:.2f}%, vLoss {best_validation_loss:.4f}, F1 {best_F1:.3f}, IoU {best_IoU:.3f}]')
+                print(f'[Epoch {epoch}/{self.args.epochs}, Exec Time {time.time() - begin_time:.2f}s] [Best] [vAccuracy {best_validation_accuracy * 100:.2f}%, vLoss {best_validation_loss:.4f}, F1 {best_F1:.3f}, IoU {best_IoU:.3f}]')
         
-
     def validate(self, epoch):
         if not self.validation_loader:
             raise ValueError(f'No value provided for validation_loader')
         
+        if self.args.device: torch.cuda.empty_cache()
         
+        start_time = time.time()
+
+        val_loss = 0
+        accuracy = 0
+        F1 = 0
+        IoU = 0
+
+        # self.net.eval()
+        with torch.no_grad():
+            for i, (image, targets) in enumerate(self.validation_loader):
+                image = image.to(self.device)
+                if isinstance(targets, list):
+                    for sample in targets:
+                        for key in list(sample.keys()):
+                            val = sample[key]
+                            if isinstance(val, torch.Tensor):
+                                sample[key] = val.to(self.device)
+                                
+                elif isinstance(targets, dict):
+                    for key in list(targets.keys()):
+                        val = targets[key]
+                        if isinstance(val, torch.Tensor):
+                            targets[key] = val.to(self.device)
+                
+                # predictions = self.net(image)
+                
+                # thresh_idx = (predictions[0]['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
+                # mask = torch.einsum('bcij->cij', predictions[0]['masks'][thresh_idx])
+                # loss = F.binary_cross_entropy_with_logits(mask, targets[0]['masks'].float())
+                
+                # mask = torch.einsum('bcij->cij', (predictions[0]['masks'][thresh_idx] > self.args.pixel_confidence_thresh).float())
+                # acc, _, _, f1, iou = binary_accuracy(mask, targets[0]['masks'].squeeze(0))
+                
+                self.predictor.set_image(image[0].permute(1, 2, 0).cpu().numpy()) # apply SAM image encoder to the image
+                
+                masks, scores, logits = self.predictor.predict()
+                
+                # print(scores)
+                
+                # plt.imshow(mask.cpu().numpy())
+                # plt.show()
+                # exit()
+                
+                # masks = masks[:,0].astype(bool)
+                # shorted_masks = torch.tensor(masks[torch.argsort(torch.tensor(scores[0]))][::-1].astype(bool))
+                
+                # seg_map = torch.zeros_like(shorted_masks)
+                # occupancy_mask = torch.zeros_like(shorted_masks, dtype=bool)
+                
+                # print(masks.shape)
+                # for i in range(shorted_masks.shape[0]):
+                #     mask = shorted_masks[i]
+                #     if (mask * occupancy_mask).sum() / mask.sum() > 0.15: continue 
+                #     mask[occupancy_mask] = 0
+                #     seg_map[mask] = i + 1
+                #     occupancy_mask[mask] = 1
+                mask = torch.einsum('cij->ij', torch.tensor(masks)).to(self.device)
+                loss = F.binary_cross_entropy_with_logits(mask, targets[0]['masks'].squeeze(0).float())
+                mask = (torch.einsum('cij->ij', torch.tensor(masks)) > 0.5).to(self.device)
+                acc, _, _, f1, iou = binary_accuracy(mask, targets[0]['masks'].squeeze(0))
+                
+                val_loss += loss.item()
+                accuracy += acc
+                F1 += f1
+                IoU += iou
+
+            val_loss /= len(self.validation_loader)
+            accuracy /= len(self.validation_loader)
+            F1 /= len(self.validation_loader)
+            IoU /= len(self.validation_loader)
+        
+        print(f'[Validation] [Epoch {epoch}, Exec Time {time.time() - start_time:.2f}s] [Loss {val_loss:.4f}, Accuracy {accuracy * 100:.2f}%, F1 {F1:.3f}, IoU {IoU:.3f}]')
 
         return val_loss, accuracy, F1, IoU
     
@@ -168,7 +241,7 @@ class SAM2():
         torch.save(
             {
                 'epoch': epoch,
-                'model_state_dict': self.net.state_dict(),
+                'model_state_dict': self.predictor.model.state_dict(),
                 'val_accuracy': val_accuracy,
                 'val_F1': val_F1,
                 'val_IoU': val_IoU,
