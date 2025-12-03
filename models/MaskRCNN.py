@@ -22,6 +22,10 @@ class MaskRCNN():
         self.lr_scheduler = lr_scheduler
         
         self.net.to(self.device)
+        
+        self.train_loss_hist = []
+        self.train_accuracy_hist = []
+        self.train_f1_hist = []
 
     def train(self):
         if not self.train_loader:
@@ -205,7 +209,8 @@ class MaskRCNN():
                 'val_accuracy': val_accuracy,
                 'val_F1': val_F1,
                 'val_IoU': val_IoU,
-                'date_str': date_str
+                'date_str': date_str,
+                'train_loss_hist': self.train_loss_hist,
             },
             os.path.join(
                 checkpoint_dir, 
