@@ -157,4 +157,6 @@ def visualize_predictions(output_format, images, predictions, targets):
         )
         
         plt.show()
-            
+
+def compare_predictions(output_format, images, targets, **model_predictions):
+    ...
