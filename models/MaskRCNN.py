@@ -220,7 +220,7 @@ class MaskRCNN():
         return val_loss, accuracy, F1, IoU
     
     def predict(self):
-        self._confirm_attributes({**universal_attributes, **predict_attributes})
+        self._confirm_attributes({**MaskRCNN_attributes, **predict_attributes})
         
         images = []
         targets = []
