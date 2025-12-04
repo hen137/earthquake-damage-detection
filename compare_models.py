@@ -119,8 +119,10 @@ def parse_arguments():
 
     parser.add_argument('--MaskRCNN_chkpt_file', required=True)
     parser.add_argument('--SAM2_chkpt_file', required=True)
+    # parser.add_argument('--MaskRCNN_chkpt_file', required=False, default='')
+    # parser.add_argument('--SAM2_chkpt_file', required=False, default='')
     
-    parser.add_argument('--output_frmt', required=True, choices=['overlay', 'rand_5'])
+    parser.add_argument('--num_samples', required=False, default=5, type=int)
 
     return parser.parse_args()
 
@@ -140,7 +142,7 @@ def main():
         'SAM2': SAM2_predictions
     }
     
-    compare_predictions(args.output_frmt, images, targets, **model_predictions)
+    compare_predictions(images, targets, args.num_samples, **model_predictions)
 
 if __name__ == "__main__":
     main()

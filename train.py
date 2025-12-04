@@ -52,7 +52,7 @@ def build_model(args, train_loader, val_loader):
         grad_params = [p for p in net.parameters() if p.requires_grad]
     
     else:
-        raise ValueError(f'Unknown encoder type: {args.encoder}')
+        raise ValueError(f'Unknown encoder type: {args.model}')
 
     # optimizer = optim.SGD(
     #     [p for p in net.parameters() if p.requires_grad],
@@ -75,7 +75,7 @@ def build_model(args, train_loader, val_loader):
     kwargs = {
         **kwargs,
         'train_loader': train_loader,
-        'val_loader': val_loader,
+        'validation_loader': val_loader,
         'optimizer': optimizer,
         'lr_scheduler': lr_scheduler,
         'use_scaler': args.use_scaler,
@@ -174,7 +174,6 @@ def main():
 
     print(f'Training {args.model} started')
     model.train(args.epochs)
-    # model.validate(0)
     print(f'Training {args.model} finished')
 
 if __name__ == '__main__':

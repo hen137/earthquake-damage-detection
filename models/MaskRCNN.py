@@ -4,33 +4,14 @@ import os, time
 # Library Imports
 # import tqdm
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.utils.data import Dataloader
-
 # Custom Imports
-from utils.utils import binary_accuracy
+from utils.utils import binary_accuracy, train_attributes, predict_attributes
 
-universal_attributes = {
+MaskRCNN_attributes = {
     'pixel_confidence_thresh': 'Float',
     'mask_confidence_thresh': 'Float'
-}
-
-train_attributes = {
-    'train_loader': 'Pytorch Dataloader',
-    'validation_loader': 'Pytorch Dataloader',
-    'optimizer': 'Pytorch Optimizer',
-    'lr_scheduler': 'Pytorch LR Scheduler',
-    'use_scaler': 'Boolean',
-    'print_freq': 'Integer',
-    'val_freq': 'Integer',
-    'chkpt_dir': 'Directory Path',
-    'dataset': 'Dataset Name',
-}
-
-predict_attributes = {
-    'test_loader': 'Pytorch Dataloader',
 }
 
 class MaskRCNN():
@@ -51,27 +32,28 @@ class MaskRCNN():
     #     self.train_f1_hist = []
     
     def __init__(self, net, device, init_from_chkpt=False, **kwargs):
-        self.train_loss_hist = []
-        self.train_accuracy_hist = []
-        self.train_precision_hist = []
-        self.train_recall_hist = []
-        self.train_f1_hist = []
-        self.train_iou_hist = []
-        
         self.net = net
         self.device = device
         
         self.net.to(self.device)
         
         for key, value in kwargs.items():
-            if key == 'chkpt': continue
+            if key == 'checkpoint': continue
             setattr(self, key, value)
             
         if init_from_chkpt:
-            if not hasattr(self, 'chkpt'):
+            if not hasattr(self, 'checkpoint'):
                 raise ValueError(f'No checkpoint provided for initializing MaskRCNN(init_from_chkpt=True, chkpt=...)')
             
             self.net.load_state_dict(kwargs['chkpt'])
+        
+        else:
+            self.train_loss_hist = []
+            self.train_accuracy_hist = []
+            self.train_precision_hist = []
+            self.train_recall_hist = []
+            self.train_f1_hist = []
+            self.train_iou_hist = []
 
     def _confirm_attributes(self, attr_list):
         for attr, type in attr_list.items():
@@ -79,7 +61,7 @@ class MaskRCNN():
                 raise ValueError(f'No value provided for {attr} (Expected type: {type})')
     
     def train(self, epochs):
-        self._confirm_attributes({**universal_attributes, **train_attributes}) 
+        self._confirm_attributes({**MaskRCNN_attributes, **train_attributes}) 
         
         best_epoch_accuracy = 0.0
         best_validation_accuracy = 0.0
@@ -260,7 +242,7 @@ class MaskRCNN():
         return images, predictions, targets
     
     def save_model(self, epoch, val_accuracy, val_F1, val_IoU, date_str):
-        checkpoint_dir = self.chkpt_dir + '/MaskRCNN' + f'/{self.dataset}'
+        checkpoint_dir = self.checkpoint_dir + '/MaskRCNN' + f'/{self.dataset}'
         if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
         
         torch.save(
