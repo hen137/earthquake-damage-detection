@@ -1,5 +1,5 @@
 # Native Imports
-import random
+import random, os
 
 # Library Imports
 import torch
@@ -9,22 +9,6 @@ from torchvision.utils import draw_segmentation_masks
 from scipy import stats
 
 # Custom Imports
-
-train_attributes = {
-    'train_loader': 'Pytorch Dataloader',
-    'validation_loader': 'Pytorch Dataloader',
-    'optimizer': 'Pytorch Optimizer',
-    'lr_scheduler': 'Pytorch LR Scheduler',
-    'use_scaler': 'Boolean',
-    'print_freq': 'Integer',
-    'val_freq': 'Integer',
-    'checkpoint_dir': 'Directory Path',
-    'dataset': 'Dataset Name',
-}
-
-predict_attributes = {
-    'test_loader': 'Pytorch Dataloader',
-}
 
 def align_dims(np_input, expected_dims=2):
     dim_input = len(np_input.shape)
@@ -72,18 +56,19 @@ def binary_accuracy(pred, label):
         IoU=1
     if precision>0 and recall>0:
         F1 = stats.hmean([precision, recall])
-        
+    
     return acc, precision, recall, F1, IoU
 
 def get_pred_mask_as_rgb(pred_mask, gt_mask):
     TP, TN, FP, FN = get_confusion_matrix_elements(pred_mask, gt_mask)
-    
-    h, w = gt_mask.shape[1:]
+
+    h, w = gt_mask.shape[1:]    
     rgb_mask = torch.zeros((h, w, 3))
-    rgb_mask[TP == 1] = [1, 1, 1]  
-    rgb_mask[TN == 1] = [0, 0, 0]  
-    rgb_mask[FP == 1] = [1, 0, 0]  
-    rgb_mask[FN == 1] = [0, 0, 1]
+    
+    rgb_mask[TP == 1] = torch.tensor([1, 1, 1], dtype=torch.float)
+    rgb_mask[TN == 1] = torch.tensor([0, 0, 0], dtype=torch.float)
+    rgb_mask[FP == 1] = torch.tensor([1, 0, 0], dtype=torch.float)
+    rgb_mask[FN == 1] = torch.tensor([0, 0, 1], dtype=torch.float)
     
     return rgb_mask
 
@@ -175,7 +160,7 @@ def compare_predictions(images, targets, num_samples, **model_predictions):
     images = [images[i] for i in idxs]
     gt_masks = [targets[i]['masks'] for i in idxs]
     
-    pred_masks = {model: [get_pred_mask_as_rgb(prediction['mask'], gt_mask) for prediction, gt_mask in zip(predictions, gt_masks)] for model, predictions in model_predictions.items()}
+    pred_masks = {model: [get_pred_mask_as_rgb(prediction['mask'], gt_mask) for prediction, gt_mask in zip([predictions[i] for i in idxs], gt_masks)] for model, predictions in model_predictions.items()}
     
     fig, axes = plt.subplots(len(row_labels), len(idxs), figsize=(2 * len(idxs), 2.5 * len(row_labels)))
     
