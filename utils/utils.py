@@ -234,3 +234,45 @@ def compare_predictions(images, targets, num_samples, **model_predictions):
     )
     
     plt.show()
+    # plt.savefig(save_file)
+
+def save_hist_graphs(output_dir, **model_hists):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    attributes = {
+        'train_accuracy_hist': 'Train Accuracy',
+        'train_precision_hist': 'Train Precision',
+        'train_recall_hist': 'Train Recall',
+        'train_f1_hist': 'Train F1 Score',
+        'train_iou_hist': 'Train IoU',
+    }
+    
+    if len(model_hists) == 1:
+        for model_name, hists in model_hists.items():
+            for hist, label in attributes.items():
+                plt.figure()
+                plt.plot(hists[hist], label=model_name)
+                plt.xlabel('Epochs')
+                plt.ylabel(label)
+                plt.title(f'{label} vs Epochs')
+                plt.legend()
+                
+                # plt.show()
+                plt.savefig(f'{output_dir}/{label}.png')
+                plt.close()
+    
+    else:
+        for hist, label in attributes.items():
+            for model_name, hists in model_hists.items():
+                plt.plot(hists[hist], label=model_name)
+                
+            plt.xlabel('Epochs')
+            plt.ylabel(label)
+            plt.title(f'{label} vs Epochs')
+            
+            plt.legend()
+            
+            # plt.show()
+            plt.savefig(f'{output_dir}/{label}_comparison.png')
+            plt.close()
