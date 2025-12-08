@@ -1,5 +1,5 @@
 # Native Imports
-import argparse
+import argparse, time
 
 # Library Imports
 # import tqdm
@@ -10,10 +10,13 @@ from datasets import load_dataset
 
 # Custom Imports
 from data.data import detection_collate
-from utils.utils import compare_predictions
+from utils.utils import compare_predictions, save_hist_graphs
+from utils.attributes import hist_attributes
 
 def build_model(args, test_loader, model):
     device = 'cuda' if args.gpu and torch.cuda.is_available() else 'cpu'
+    
+    kwargs = {}
     
     if model == 'SAM2':
         from sam2.build_sam import build_sam2_hf
@@ -25,12 +28,11 @@ def build_model(args, test_loader, model):
         
         net = predictor
         
-        checkpoint = torch.load(args.chkpt_file, map_location=device, weights_only=False)
-        # predictor.model.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load(args.SAM2_chkpt_file, map_location=device, weights_only=False)
         
-        kwargs = {
-            
-        }
+        # kwargs = {
+        #     **kwargs,
+        # }
         
     elif model == 'MaskRCNN':
         from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
@@ -47,10 +49,10 @@ def build_model(args, test_loader, model):
         net.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=2)
         net.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced, num_classes=2)
         
-        checkpoint = torch.load(args.chkpt_file, map_location=device, weights_only=False)
-        # net.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load(args.MaskRCNN_chkpt_file, map_location=device, weights_only=False)
         
         kwargs = {
+            **kwargs,
             'pixel_confidence_thresh': checkpoint['pixel_confidence_thresh'],
             'mask_confidence_thresh': checkpoint['mask_confidence_thresh'],
         }
@@ -113,7 +115,7 @@ def get_test_loaders(args):
     return test_loader
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Predicting")
+    parser = argparse.ArgumentParser(description="Comparing Models")
 
     parser.add_argument('--dataset', required=True, choices=['KATE_CD', 'KATE_PD', 'Flood'])
 
@@ -124,10 +126,10 @@ def parse_arguments():
 
     parser.add_argument('--test_batch_size', required=False, default=1, type=int)
 
-    parser.add_argument('--MaskRCNN_chkpt_file', required=True)
-    parser.add_argument('--SAM2_chkpt_file', required=True)
-    # parser.add_argument('--MaskRCNN_chkpt_file', required=False, default='')
-    # parser.add_argument('--SAM2_chkpt_file', required=False, default='')
+    parser.add_argument('--MaskRCNN_chkpt_file', required=True, type=str)
+    parser.add_argument('--SAM2_chkpt_file', required=True, type=str)
+    # parser.add_argument('--MaskRCNN_chkpt_file', required=False, default='models\checkpoints\MaskRCNN\KATE_CD\MaskRCNN_04-12-2025_01-45_E8_vA97.03_vF0.173_vIoU0.126.pth')
+    # parser.add_argument('--SAM2_chkpt_file', required=False, default='models\checkpoints\SAM2\KATE_CD\SAM2_04-12-2025_13-21_E2_vA81.20_vF0.145_vIoU0.086.pth')
     
     parser.add_argument('--num_samples', required=False, default=5, type=int)
     

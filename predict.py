@@ -1,5 +1,5 @@
 # Native Imports
-import argparse
+import argparse, time
 
 # Library Imports
 # import tqdm
@@ -16,6 +16,8 @@ from utils.attributes import hist_attributes
 def build_model(model, gpu, test_loader, chkpt_file):
     device = 'cuda' if gpu and torch.cuda.is_available() else 'cpu'
     
+    kwargs = {}
+    
     if model == 'SAM2':
         from sam2.build_sam import build_sam2_hf
         from sam2.sam2_image_predictor import SAM2ImagePredictor
@@ -29,9 +31,9 @@ def build_model(model, gpu, test_loader, chkpt_file):
         checkpoint = torch.load(chkpt_file, map_location=device, weights_only=False)
         # predictor.model.load_state_dict(checkpoint['model_state_dict'])
         
-        kwargs = {
-            
-        }
+        # kwargs = {
+        #     **kwargs,
+        # }
         
     elif model == 'MaskRCNN':
         from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
@@ -52,6 +54,7 @@ def build_model(model, gpu, test_loader, chkpt_file):
         # net.load_state_dict(checkpoint['model_state_dict'])
         
         kwargs = {
+            **kwargs,
             'pixel_confidence_thresh': checkpoint['pixel_confidence_thresh'],
             'mask_confidence_thresh': checkpoint['mask_confidence_thresh'],
         }
@@ -126,8 +129,8 @@ def parse_arguments():
 
     parser.add_argument('--test_batch_size', required=False, default=1, type=int)
 
-    parser.add_argument('--chkpt_file', required=True)
-    # parser.add_argument('--chkpt_file', required=False, default='')
+    parser.add_argument('--chkpt_file', required=True, type=str)
+    # parser.add_argument('--chkpt_file', required=False, default='models\checkpoints\MaskRCNN\KATE_CD\MaskRCNN_04-12-2025_01-45_E8_vA97.03_vF0.173_vIoU0.126.pth')
     
     parser.add_argument('--output_frmt', required=True, choices=['overlay', 'rand_5'])
     parser.add_argument('--output_dir', required=False, default='outputs/predictions')
@@ -167,4 +170,4 @@ def main():
     
 if __name__ == '__main__':
     main()
-    
+     

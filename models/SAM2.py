@@ -11,46 +11,28 @@ from utils.utils import binary_accuracy, save_hist_graphs
 from utils.attributes import hist_attributes, train_attributes, predict_attributes
 
 class SAM2():
-    # def __init__(self, args, predictor, device, train_loader=None, val_loader=None, test_loader=None, optimizer=None, lr_scheduler=None):
-    #     self.args = args
-    #     self.predictor = predictor
-    #     self.device = device
-    #     self.train_loader = train_loader
-    #     self.validation_loader = val_loader
-    #     self.test_loader = test_loader
-    #     self.optimizer = optimizer
-    #     self.lr_scheduler = lr_scheduler
-        
-    #     # self.net.to(self.device)
-
     def __init__(self, predictor, device, init_from_chkpt=False, **kwargs):
         self.predictor = predictor
         self.device = device
         
         # self.net.to(self.device)
         
-        for key, value in kwargs.items():
-            if key == 'checkpoint': continue
-            setattr(self, key, value)
+        for attr, value in kwargs.items():
+            if attr in list(hist_attributes.keys()): continue
+            setattr(self, attr, value)
             
         if init_from_chkpt:
             if not hasattr(self, 'checkpoint'):
-                raise ValueError(f'No checkpoint provided for initializing MaskRCNN(init_from_chkpt=True, chkpt=...)')
+                raise ValueError(f'No checkpoint provided for initializing SAM2(init_from_chkpt=True, checkpoint=...)')
             
-            self.predictor.load_state_dict(kwargs['chkpt'])
+            self.predictor.model.load_state_dict(kwargs['checkpoint'])
+            
+            for hist in hist_attributes.keys():
+                setattr(self, hist, kwargs[hist])
         
         else:
-            self.train_loss_hist = []
-            self.train_accuracy_hist = []
-            self.train_precision_hist = []
-            self.train_recall_hist = []
-            self.train_f1_hist = []
-            self.train_iou_hist = []
-    
-    def _confirm_attributes(self, attr_list):
-        for attr, type in attr_list.items():
-            if not hasattr(self, attr):
-                raise ValueError(f'No value provided for {attr} (Expected type: {type})')
+            for hist in hist_attributes.keys():
+                setattr(self, hist, [])
     
     def train(self, epochs):
         self._confirm_attributes(train_attributes)
@@ -72,7 +54,6 @@ class SAM2():
         scaler = torch.amp.GradScaler() if self.device == 'cuda' and self.use_scaler else None
         
         for epoch in range(epochs):
-            if self.device == 'cuda': torch.cuda.empty_cache()
             
             epoch_loss = 0  
             epoch_accuracy = 0
@@ -153,19 +134,23 @@ class SAM2():
                         
                         # thresh_idx = (predictions[0]['scores'] > self.args.mask_confidence_thresh).nonzero().squeeze(1)
                         # mask = torch.einsum('bcij->cij', (predictions[0]['masks'][thresh_idx] > self.args.pixel_confidence_thresh).float()) # assumes batch_size is 1
-                    accuracy, _, _, f1, _ = binary_accuracy(prd_mask, targets[0]['masks'].squeeze(0))
-                    
+                    accuracy, precision, recall, f1, iou = binary_accuracy(prd_mask, targets[0]['masks'].squeeze(0))
+                    print(f1, iou)
                     epoch_accuracy += accuracy
+                    epoch_precision += precision
+                    epoch_recall += recall
+                    epoch_f1 += f1
+                    epoch_iou += iou
                 
                     # print(f'[Train] [Epoch {epoch + 1}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, IoU {iou.item():.3f}]')
                     print(f'[Train] [Epoch {epoch}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, Accuracy {accuracy * 100:.2f}%, F1 {f1:.3f}]')
             
-            epoch_loss /= len(self.train_loader)
-            epoch_accuracy /= len(self.train_loader)
-            epoch_precision /= len(self.train_loader)
-            epoch_recall /= len(self.train_loader)
-            epoch_f1 /= len(self.train_loader)
-            epoch_iou /= len(self.train_loader)
+            epoch_loss /= len(self.train_loader) / self.print_freq
+            epoch_accuracy /= len(self.train_loader) / self.print_freq
+            epoch_precision /= len(self.train_loader) / self.print_freq
+            epoch_recall /= len(self.train_loader) / self.print_freq
+            epoch_f1 /= len(self.train_loader) / self.print_freq
+            epoch_iou /= len(self.train_loader) / self.print_freq
             
             self.train_loss_hist.append(epoch_loss)
             self.train_accuracy_hist.append(epoch_accuracy)
@@ -173,6 +158,9 @@ class SAM2():
             self.train_recall_hist.append(epoch_recall)
             self.train_f1_hist.append(epoch_f1)
             self.train_iou_hist.append(epoch_iou)
+            
+            print(self.train_f1_hist)
+            print(self.train_iou_hist)
             
             # VALIDATE
             if epoch % self.val_freq == 0:
@@ -184,12 +172,48 @@ class SAM2():
                     best_F1 = val_F1
                     best_IoU = val_IoU
                     
-                    self.save_model(epoch, val_accuracy, val_F1, val_IoU, date_str)
+                    self._save_model_incrementaly(epoch, val_accuracy, val_F1, val_IoU, date_str)
                 
                 if epoch_accuracy > best_epoch_accuracy: best_epoch_accuracy = epoch_accuracy
                 
                 print(f'[Epoch {epoch}/{epochs}, Exec Time {time.time() - begin_time:.2f}s] [Best] [vAccuracy {best_validation_accuracy * 100:.2f}%, vLoss {best_validation_loss:.4f}, F1 {best_F1:.3f}, IoU {best_IoU:.3f}]')
+            
+            if self.device == 'cuda': torch.cuda.empty_cache()
         
+        self.train_time = time.time() - begin_time
+        print(f'Training complete in {self.train_time // 60:.0f}m {self.train_time % 60:.0f}s')
+        
+        # if self.graph_hists:
+        #     for hist in hist_attributes.keys():
+        #         make_hist_graphs(getattr(self, hist))
+        
+        self._save_model(date_str, epochs)
+        
+    def predict(self):
+        self._confirm_attributes(predict_attributes)
+        
+        '''
+        This code is written assuming a batch size of 1 for test loader
+        '''
+        
+        predictions = []
+        t_img_avg = 0.0
+        
+        # self.predictor.model.eval()
+        with torch.no_grad():
+            for i, (image_batch, targets_batch) in enumerate(self.test_loader):
+                self.predictor.set_image(image_batch[0].permute(1, 2, 0).cpu().numpy()) # apply SAM image encoder to the image
+                
+                t = time.time()
+                masks, scores, logits = self.predictor.predict()
+                t_img_avg = time.time() - t
+                
+                predictions.append({'mask': (torch.einsum('cij->ij', torch.tensor(masks)) > 0.5).cpu()})
+        
+        t_img_avg /= len(self.test_loader)
+        
+        return predictions, t_img_avg
+    
     def _validate(self, epoch):
         
         '''
@@ -274,33 +298,12 @@ class SAM2():
 
         return val_loss, accuracy, F1, IoU
     
-    def predict(self):
-        self._confirm_attributes(predict_attributes)
-        
-        '''
-        This code is written assuming a batch size of 1 for test loader
-        '''
-        
-        images = []
-        targets = []
-        predictions = []
-        
-        # self.predictor.model.eval()
-        with torch.no_grad():
-            for i, (image_batch, targets_batch) in enumerate(self.test_loader):
-                self.predictor.set_image(image_batch[0].permute(1, 2, 0).cpu().numpy()) # apply SAM image encoder to the image
-                
-                masks, scores, logits = self.predictor.predict()
-                
-                for image, target in zip(image_batch, targets_batch):
-                    images.append(image.cpu())
-                    targets.append(target)
-                    
-                predictions.append({'mask': (torch.einsum('cij->ij', torch.tensor(masks)) > 0.5).cpu()})
-        
-        return images, predictions, targets
+    def _confirm_attributes(self, attr_list):
+        for attr, type in attr_list.items():
+            if not hasattr(self, attr):
+                raise ValueError(f'No value provided for {attr} (Expected type: {type})')
     
-    def save_model(self, epoch, val_accuracy, val_F1, val_IoU, date_str):
+    def _save_model_incrementaly(self, epoch, val_accuracy, val_F1, val_IoU, date_str):
         checkpoint_dir = self.checkpoint_dir + '/SAM2' + f'/{self.dataset}'
         if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
         
@@ -328,3 +331,31 @@ class SAM2():
                 f"SAM2_{date_str}_E{epoch}_vA{val_accuracy * 100:.2f}_vF{val_F1:.3f}_vIoU{val_IoU:.3f}.pth"
             )
         )
+        
+    def _save_model(self, date_str, epochs):
+        checkpoint_dir = self.checkpoint_dir + '/SAM2' + f'/{self.dataset}'
+        if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
+        
+        hists = {hist: getattr(self, hist) for hist in hist_attributes.keys()}
+        
+        torch.save(
+            {
+                'epoch': epochs,
+                'model_state_dict': self.predictor.model.state_dict(),
+                'train_time': self.train_time,
+                # metrics vs epoch history
+                'train_loss_hist': self.train_loss_hist,
+                'train_accuracy_hist': self.train_accuracy_hist,
+                'train_precision_hist': self.train_precision_hist,
+                'train_recall_hist': self.train_recall_hist,
+                'train_f1_hist': self.train_f1_hist,
+                'train_iou_hist': self.train_iou_hist,
+                
+                'date_str': date_str
+            },
+            os.path.join(
+                checkpoint_dir, 
+                f"SAM2_{date_str}_E{epochs}.pth"
+            )
+        )
+    

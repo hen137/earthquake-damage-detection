@@ -16,50 +16,29 @@ MaskRCNN_attributes = {
 }
 
 class MaskRCNN():
-    # def __init__(self, args, net, device, train_loader=None, val_loader=None, test_loader=None, optimizer=None, lr_scheduler=None):
-    #     self.args = args
-    #     self.net = net
-    #     self.device = device
-    #     self.train_loader = train_loader
-    #     self.validation_loader = val_loader
-    #     self.test_loader = test_loader
-    #     self.optimizer = optimizer
-    #     self.lr_scheduler = lr_scheduler
-        
-    #     self.net.to(self.device)
-        
-    #     self.train_loss_hist = []
-    #     self.train_accuracy_hist = []
-    #     self.train_f1_hist = []
-    
     def __init__(self, net, device, init_from_chkpt=False, **kwargs):
         self.net = net
         self.device = device
         
         self.net.to(self.device)
         
-        for key, value in kwargs.items():
-            if key == 'checkpoint': continue
-            setattr(self, key, value)
+        for attr, value in kwargs.items():
+            if attr in list(hist_attributes.keys()): continue
+            setattr(self, attr, value)
             
         if init_from_chkpt:
             if not hasattr(self, 'checkpoint'):
-                raise ValueError(f'No checkpoint provided for initializing MaskRCNN(init_from_chkpt=True, chkpt=...)')
+                raise ValueError(f'No checkpoint provided for initializing MaskRCNN(init_from_chkpt=True, checkpoint=...)')
             
-            self.net.load_state_dict(kwargs['chkpt'])
+            self.net.load_state_dict(kwargs['checkpoint'])
+            
+            for hist in hist_attributes.keys():
+                setattr(self, hist, kwargs[hist])
         
         else:
-            self.train_loss_hist = []
-            self.train_accuracy_hist = []
-            self.train_precision_hist = []
-            self.train_recall_hist = []
-            self.train_f1_hist = []
-            self.train_iou_hist = []
+            for hist in hist_attributes.keys():
+                setattr(self, hist, [])
 
-    def _confirm_attributes(self, attr_list):
-        for attr, type in attr_list.items():
-            if not hasattr(self, attr):
-                raise ValueError(f'No value provided for {attr} (Expected type: {type})')
     
     def train(self, epochs):
         self._confirm_attributes({**MaskRCNN_attributes, **train_attributes}) 
@@ -76,8 +55,9 @@ class MaskRCNN():
         
         scaler = torch.amp.GradScaler() if self.device == 'cuda' and self.use_scaler else None
         
+        print(f'Training started at {date_str}')
+        
         for epoch in range(epochs):
-            if self.device == 'cuda': torch.cuda.empty_cache()
             
             epoch_loss = 0  
             epoch_accuracy = 0
@@ -139,12 +119,12 @@ class MaskRCNN():
                         
                     print(f'[Train] [Epoch {epoch}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, Accuracy {accuracy * 100:.2f}%, F1 {f1:.3f}]')
                     
-            epoch_loss /= len(self.train_loader)
-            epoch_accuracy /= len(self.train_loader)
-            epoch_precision /= len(self.train_loader)
-            epoch_recall /= len(self.train_loader)
-            epoch_f1 /= len(self.train_loader)
-            epoch_iou /= len(self.train_loader)
+            epoch_loss /= len(self.train_loader) / self.print_freq
+            epoch_accuracy /= len(self.train_loader) / self.print_freq
+            epoch_precision /= len(self.train_loader) / self.print_freq
+            epoch_recall /= len(self.train_loader) / self.print_freq
+            epoch_f1 /= len(self.train_loader) / self.print_freq
+            epoch_iou /= len(self.train_loader) / self.print_freq
             
             self.train_loss_hist.append(epoch_loss)
             self.train_accuracy_hist.append(epoch_accuracy)
@@ -163,12 +143,45 @@ class MaskRCNN():
                     best_F1 = val_F1
                     best_IoU = val_IoU
                     
-                    self.save_model(epoch, val_accuracy, val_F1, val_IoU, date_str)
+                    self._save_model_incrementaly(epoch, val_accuracy, val_F1, val_IoU, date_str)
                 
                 if epoch_accuracy > best_epoch_accuracy: best_epoch_accuracy = epoch_accuracy
                 
                 print(f'[Epoch {epoch}/{epochs}, Exec Time {time.time() - begin_time:.2f}s] [Best] [vAccuracy {best_validation_accuracy * 100:.2f}%, vLoss {best_validation_loss:.4f}, F1 {best_F1:.3f}, IoU {best_IoU:.3f}]')
-
+            
+            if self.device == 'cuda': torch.cuda.empty_cache()
+        
+        self.train_time = time.time() - begin_time
+        print(f'Training complete in {self.train_time // 60:.0f}m {self.train_time % 60:.0f}s')
+        
+        # if self.graph_hists:
+        #     for hist in hist_attributes.keys():
+        #         make_hist_graphs(getattr(self, hist))
+        
+        self._save_model(date_str, epochs)
+        
+    
+    def predict(self):
+        self._confirm_attributes({**MaskRCNN_attributes, **predict_attributes})
+        
+        predictions = []
+        t_batch_avg = 0.0
+        
+        self.net.eval()
+        with torch.no_grad():
+            for i, (image_batch, targets_batch) in enumerate(self.test_loader):
+                t = time.time()
+                preds = self.net(image_batch.to(self.device))
+                t_batch_avg += (time.time() - t)
+                
+                for pred in preds:
+                    thresh_idx = (pred['scores'] > self.mask_confidence_thresh).nonzero().squeeze(1)
+                    predictions.append({'mask': torch.einsum('bcij->cij', (pred['masks'][thresh_idx] > self.pixel_confidence_thresh)).bool().cpu()})
+        
+        t_batch_avg /= len(self.test_loader)
+        
+        return predictions, t_batch_avg
+    
     def _validate(self, epoch):
         # the following code is written assuming that batch size is 1
         if self.device == 'cuda': torch.cuda.empty_cache()
@@ -220,29 +233,12 @@ class MaskRCNN():
 
         return val_loss, accuracy, F1, IoU
     
-    def predict(self):
-        self._confirm_attributes({**MaskRCNN_attributes, **predict_attributes})
-        
-        images = []
-        targets = []
-        predictions = []
-        
-        self.net.eval()
-        with torch.no_grad():
-            for i, (image_batch, targets_batch) in enumerate(self.test_loader):
-                preds = self.net(image_batch.to(self.device))
-                
-                for image, target in zip(image_batch, targets_batch):
-                    images.append(image.cpu())
-                    targets.append(target)
-                    
-                for pred in preds:
-                    thresh_idx = (pred['scores'] > self.mask_confidence_thresh).nonzero().squeeze(1)
-                    predictions.append({'mask': torch.einsum('bcij->cij', (pred['masks'][thresh_idx] > self.pixel_confidence_thresh)).bool().cpu()})
-        
-        return images, predictions, targets
-    
-    def save_model(self, epoch, val_accuracy, val_F1, val_IoU, date_str):
+    def _confirm_attributes(self, attr_list):
+        for attr, type in attr_list.items():
+            if not hasattr(self, attr):
+                raise ValueError(f'No value provided for {attr} (Expected type: {type})')
+            
+    def _save_model_incrementaly(self, epoch, val_accuracy, val_F1, val_IoU, date_str):
         checkpoint_dir = self.checkpoint_dir + '/MaskRCNN' + f'/{self.dataset}'
         if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
         
@@ -257,6 +253,26 @@ class MaskRCNN():
                 'val_F1': val_F1,
                 'val_IoU': val_IoU,
                 
+                'date_str': date_str,
+            },
+            os.path.join(
+                checkpoint_dir, 
+                f"MaskRCNN_{date_str}_E{epoch}_vA{val_accuracy * 100:.2f}_vF{val_F1:.3f}_vIoU{val_IoU:.3f}.pth"
+            )
+        )
+    
+    def _save_model(self, date_str, epochs):
+        checkpoint_dir = self.checkpoint_dir + '/MaskRCNN' + f'/{self.dataset}'
+        if not os.path.exists(checkpoint_dir): os.makedirs(checkpoint_dir)
+        
+        torch.save(
+            {
+                'epoch': 'final',
+                'model_state_dict': self.net.state_dict(),
+                'pixel_confidence_thresh': self.pixel_confidence_thresh,
+                'mask_confidence_thresh': self.mask_confidence_thresh,
+                'train_time': self.train_time,
+                
                 # metrics vs epoch history
                 'train_loss_hist': self.train_loss_hist,
                 'train_accuracy_hist': self.train_accuracy_hist,
@@ -269,6 +285,6 @@ class MaskRCNN():
             },
             os.path.join(
                 checkpoint_dir, 
-                f"MaskRCNN_{date_str}_E{epoch}_vA{val_accuracy * 100:.2f}_vF{val_F1:.3f}_vIoU{val_IoU:.3f}.pth"
+                f"MaskRCNN_{date_str}_Epochs{epochs}.pth"
             )
         )

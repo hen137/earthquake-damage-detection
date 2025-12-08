@@ -15,6 +15,8 @@ from data.data import detection_collate
 def build_model(args, train_loader, val_loader):
     device = 'cuda' if args.device and torch.cuda.is_available() else 'cpu'
     
+    kwargs = {}
+    
     if args.model == 'SAM2':
         from sam2.build_sam import build_sam2_hf
         from sam2.sam2_image_predictor import SAM2ImagePredictor
@@ -26,7 +28,9 @@ def build_model(args, train_loader, val_loader):
         net = predictor
         grad_params = [p for p in predictor.model.parameters() if p.requires_grad]
         
-        kwargs = {}
+        # kwargs = {
+        #     **kwargs
+        # }
 
     elif args.model == 'MaskRCNN':
         from torchvision.models.detection import maskrcnn_resnet50_fpn_v2
@@ -45,6 +49,7 @@ def build_model(args, train_loader, val_loader):
         net.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced, num_classes=2)
         
         kwargs = {
+            **kwargs,
             'pixel_confidence_thresh': args.pixel_confidence_thresh,
             'mask_confidence_thresh': args.mask_confidence_thresh,
         }
@@ -83,6 +88,7 @@ def build_model(args, train_loader, val_loader):
         'print_freq': args.print_freq,
         'val_freq': args.val_freq,
         'checkpoint_dir': args.chkpt_dir,
+        'graph_hists': args.graph_hists,
     }
     
     model = TrainerClass(
@@ -135,7 +141,7 @@ def get_data_loaders(args):
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Training")
     
-    parser.add_argument('--model', required=True, choices=['SAM2', 'DeepLabV3+', 'MaskRCNN'])
+    parser.add_argument('--model', required=True, choices=['SAM2', 'MaskRCNN'])
     parser.add_argument('--dataset', required=True, choices=['KATE_CD', 'KATE_PD', 'Flood'])
     
     parser.add_argument('--device', required=False, default='gpu', action='store_true')
@@ -175,7 +181,6 @@ def main():
 
     print(f'Training {args.model} started')
     model.train(args.epochs)
-    print(f'Training {args.model} finished')
 
 if __name__ == '__main__':
     main()
