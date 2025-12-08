@@ -61,7 +61,14 @@ def build_model(args, test_loader, model):
     kwargs = {
         **kwargs,
         'test_loader': test_loader,
-        'checkpoint': checkpoint['model_state_dict']
+        'checkpoint': checkpoint['model_state_dict'],
+        'train_loss_hist': checkpoint['train_loss_hist'],
+        'train_accuracy_hist': checkpoint['train_accuracy_hist'],
+        'train_precision_hist': checkpoint['train_precision_hist'],
+        'train_recall_hist': checkpoint['train_recall_hist'],
+        'train_f1_hist': checkpoint['train_f1_hist'],
+        'train_iou_hist': checkpoint['train_iou_hist'],
+        'train_time': checkpoint['train_time'],
     }
     
     model = TrainerClass(
@@ -123,19 +130,41 @@ def parse_arguments():
     # parser.add_argument('--SAM2_chkpt_file', required=False, default='')
     
     parser.add_argument('--num_samples', required=False, default=5, type=int)
+    
+    parser.add_argument('--output_dir', required=False, default='outputs/comparisons')
 
     return parser.parse_args()
 
 def main():
     args = parse_arguments()
     
+    output_dir = args.output_dir + '/' + args.dataset
+    
     test_loader = get_test_loaders(args)
+    
+    images = []
+    targets = []
+    
+    for image_batch, target_batch in test_loader:
+        for image, target in zip(image_batch, target_batch):
+            images.append(image)
+            targets.append(target)
     
     _, MaskRCNN = build_model(args, test_loader, 'MaskRCNN')
     _, SAM2 = build_model(args, test_loader, 'SAM2')
     
-    images, MaskRCNN_predictions, targets = MaskRCNN.predict()
-    _, SAM2_predictions, _ = SAM2.predict()
+    # print(MaskRCNN.train_f1_hist)
+    model_hists = {model_name: {hist: getattr(model, hist) for hist in hist_attributes} for model_name, model in zip(['MaskRCNN', 'SAM2'], [MaskRCNN, SAM2])}
+    
+    save_hist_graphs(output_dir, **model_hists)
+    
+    t = time.time()
+    MaskRCNN_predictions, MaskRCNN_time = MaskRCNN.predict()
+    MaskRCNN_total_time = time.time() - t
+    
+    t = time.time()
+    SAM2_predictions, SAM2_time = SAM2.predict()
+    SAM2_total_time = time.time() - t
     
     model_predictions = {
         'MaskRCNN': MaskRCNN_predictions,
@@ -143,6 +172,14 @@ def main():
     }
     
     compare_predictions(images, targets, args.num_samples, **model_predictions)
+    
+    print(f'MaskRCNN Total Train Time: {MaskRCNN.train_time // 60:.0f}m {MaskRCNN.train_time % 60:.0f}s')
+    print(f'MaskRCNN Average Inference Time per Batch: {MaskRCNN_time:.4f} seconds')
+    print(f'MaskRCNN Total Inference Time for {len(images)} images: {MaskRCNN_total_time:.4f} seconds')
+    print()
+    print(f'SAM2 Total Train Time: {SAM2.train_time // 60:.0f}m {SAM2.train_time % 60:.0f}s')
+    print(f'SAM2 Average Inference Time per Batch: {SAM2_time:.4f} seconds')
+    print(f'SAM2 Total Inference Time for {len(images)} images: {SAM2_total_time:.4f} seconds')
 
 if __name__ == "__main__":
     main()

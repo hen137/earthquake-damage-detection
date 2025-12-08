@@ -7,7 +7,8 @@ import torch
 import torch.nn.functional as F
 
 # Custom Imports
-from utils.utils import binary_accuracy, train_attributes, predict_attributes
+from utils.utils import binary_accuracy, save_hist_graphs
+from utils.attributes import hist_attributes, train_attributes, predict_attributes
 
 class SAM2():
     # def __init__(self, args, predictor, device, train_loader=None, val_loader=None, test_loader=None, optimizer=None, lr_scheduler=None):

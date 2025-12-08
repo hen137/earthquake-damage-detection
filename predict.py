@@ -10,7 +10,8 @@ from datasets import load_dataset
 
 # Custom Imports
 from data.data import detection_collate
-from utils.utils import visualize_predictions
+from utils.utils import save_hist_graphs, visualize_predictions
+from utils.attributes import hist_attributes
 
 def build_model(model, gpu, test_loader, chkpt_file):
     device = 'cuda' if gpu and torch.cuda.is_available() else 'cpu'
@@ -62,12 +63,13 @@ def build_model(model, gpu, test_loader, chkpt_file):
         **kwargs,
         'test_loader': test_loader,
         'checkpoint': checkpoint['model_state_dict'],
-        # 'train_loss_hist': checkpoint['train_loss_hist'],
-        # 'train_accuracy_hist': checkpoint['train_accuracy_hist'],
-        # 'train_precision_hist': checkpoint['train_precision_hist'],
-        # 'train_recall_hist': checkpoint['train_recall_hist'],
-        # 'train_f1_hist': checkpoint['train_f1_hist'],
-        # 'train_iou_hist': checkpoint['train_iou_hist'],
+        'train_loss_hist': checkpoint['train_loss_hist'],
+        'train_accuracy_hist': checkpoint['train_accuracy_hist'],
+        'train_precision_hist': checkpoint['train_precision_hist'],
+        'train_recall_hist': checkpoint['train_recall_hist'],
+        'train_f1_hist': checkpoint['train_f1_hist'],
+        'train_iou_hist': checkpoint['train_iou_hist'],
+        'train_time': checkpoint['train_time'],
     }
     
     model = TrainerClass(
@@ -128,19 +130,40 @@ def parse_arguments():
     # parser.add_argument('--chkpt_file', required=False, default='')
     
     parser.add_argument('--output_frmt', required=True, choices=['overlay', 'rand_5'])
+    parser.add_argument('--output_dir', required=False, default='outputs/predictions')
 
     return parser.parse_args()
 
 def main():
     args = parse_arguments()
     
+    output_dir = args.output_dir + '/' + args.model + '/' + args.dataset
+    
     test_loader = get_test_loaders(args.dataset, args.test_batch_size)
+    
+    images = []
+    targets = []
+    
+    for img_batch, targets_batch in test_loader:
+        for (image, target) in zip(img_batch, targets_batch):
+            images.append(image)
+            targets.append(target)
     
     net, model = build_model(args.model, args.gpu, test_loader, args.chkpt_file)
     
-    images, predictions, targets = model.predict()
+    t = time.time()
+    predictions, avg_time = model.predict()
+    t_total = time.time() - t
     
     visualize_predictions(args.output_frmt, images, predictions, targets)
+    
+    model_hist = {args.model: {hist: getattr(model, hist) for hist in hist_attributes}}
+    
+    save_hist_graphs(output_dir, **model_hist)
+    
+    print(f'Total Train Time: {model.train_time // 60:.0f}m {model.train_time % 60:.0f}s')
+    print(f'Average inference time per image: {avg_time:.4f} seconds')
+    print(f'Total inference time for {len(images)} images: {t_total:.4f} seconds')
     
 if __name__ == '__main__':
     main()

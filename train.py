@@ -158,6 +158,7 @@ def parse_arguments():
     parser.add_argument('--print_freq', required=False, default=20, type=int)
     parser.add_argument('--val_freq', required=False, default=2, type=int)
     parser.add_argument('--chkpt_dir', required=False, default='./models/checkpoints')
+    parser.add_argument('--graph_hists', required=False, default=False, type=bool)
 
     return parser.parse_args()
 
