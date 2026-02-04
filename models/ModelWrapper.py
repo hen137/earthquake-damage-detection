@@ -11,16 +11,41 @@ from utils.attributes import hist_attributes, train_attributes, predict_attribut
 
 class ModelBase:
     def _get_attributes(self):
+        '''
+        Must return a dictionary of model-specific attributes and their types
+        e.g., {'pixel_confidence_thresh': 'Float'}
+        '''
         raise NotImplementedError('Child class must implement _get_attributes() method.')
     
     def _set_train_mode(self):
+        '''
+        Must set the model to training mode
+        '''
         raise NotImplementedError('Child class must implement _set_train_mode() method')
     
     def _set_eval_mode(self):
+        '''
+        Must set the model to evaluation mode
+        '''
         raise NotImplementedError('Child class must implement _set_eval_mode() method')
     
     def _prediction(self, images, targets):
-        raise NotImplementedError('Child class must implement _get_prediction(self, images, targets) method')
+        '''
+        Must return loss and predicted mask for each image/target pair
+        '''
+        raise NotImplementedError('Child class must implement _prediction(self, images, targets) method')
+    
+    # def _threshold_mask(self, pred_mask):
+    #     '''
+    #     Must return thresholded mask from predicted mask
+    #     '''
+    #     raise NotImplementedError('Child class must implement _threshold_mask(self, pred_mask) method')
+    
+    def _get_parameters(self):
+        '''
+        Must return model parameters as a state_dict
+        '''
+        raise NotImplementedError('Child class must implement _get_parameters(self) method')
     
     def __init__(self, name, device, init_from_checkpoint=False, **kwargs):
         self.name = name
@@ -99,10 +124,6 @@ class ModelBase:
                 epoch_loss += train_loss.item()
                 
                 if i % self.print_freq == 0:
-                    # self._set_eval_mode()
-                    # with torch.no_grad():
-                    #     prd_mask = ...
-                    
                     #TODO: comply with batches
                     accuracy, precision, recall, f1, iou = binary_accuracy(pred_mask, targets[0]['masks'].squeeze(0))
                     epoch_accuracy += accuracy
@@ -111,7 +132,7 @@ class ModelBase:
                     epoch_f1 += f1
                     epoch_iou += iou
                 
-                print(f'[Train] [Epoch {epoch}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, Accuracy {accuracy * 100:.2f}%, F1 {f1:.3f}]')
+                    print(f'[Train] [Epoch {epoch}] [Iter. {i}] [Learning Rate {self.optimizer.param_groups[0]['lr']:.2e}] [Loss {train_loss.item():.4f}, Accuracy {accuracy * 100:.2f}%, F1 {f1:.3f}]')
 
             epoch_loss /= len(self.train_loader) / self.print_freq
             epoch_accuracy /= len(self.train_loader) / self.print_freq
@@ -188,7 +209,7 @@ class ModelBase:
         self._set_eval_mode()
         with torch.no_grad():
             for i, (images, targets) in enumerate(self.validation_loader):
-                image = image.to(self.device)
+                images = images.to(self.device)
                 if isinstance(targets, list):
                     for sample in targets:
                         for key in list(sample.keys()):
@@ -205,7 +226,7 @@ class ModelBase:
                 loss, pred_masks = self._prediction(images, targets)
                 
                 #TODO: comply with batches
-                acc, _, _, f1, iou = binary_accuracy(mask, targets[0]['masks'].squeeze(0))
+                acc, _, _, f1, iou = binary_accuracy(pred_masks, targets[0]['masks'].squeeze(0))
                 
                 val_loss += loss
                 accuracy += acc
@@ -231,9 +252,9 @@ class ModelBase:
         torch.save(
             {
                 'epoch': epoch,
-                'model_state_dict': self.net.state_dict(),
-                'pixel_confidence_thresh': self.pixel_confidence_thresh,
-                'mask_confidence_thresh': self.mask_confidence_thresh,
+                'model_state_dict': self._get_parameters(),
+                
+                **{attr_name: getattr(self, attr_name) for attr_name in self._get_attributes().keys()},
                 
                 'val_accuracy': val_accuracy,
                 'val_F1': val_F1,
@@ -254,12 +275,12 @@ class ModelBase:
         torch.save(
             {
                 'epoch': 'final',
-                'model_state_dict': self.net.state_dict(),
-                'pixel_confidence_thresh': self.pixel_confidence_thresh,
-                'mask_confidence_thresh': self.mask_confidence_thresh,
+                'model_state_dict': self._get_parameters(),
                 'train_time': self.train_time,
                 
-                # metrics vs epoch history
+                **{attr_name: getattr(self, attr_name) for attr_name in self._get_attributes().keys()},
+                
+                # metrics vs epochs history
                 'train_loss_hist': self.train_loss_hist,
                 'train_accuracy_hist': self.train_accuracy_hist,
                 'train_precision_hist': self.train_precision_hist,
