@@ -45,7 +45,7 @@ class ModelBase:
         '''
         Must return model parameters as a state_dict
         '''
-        raise NotImplementedError('Child class must implement _get_parameters(self) method')
+        raise NotImplementedError('Child class must implement _get_parameters() method')
     
     def __init__(self, name, device, init_from_checkpoint=False, **kwargs):
         self.name = name
