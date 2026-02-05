@@ -5,7 +5,7 @@ import os, time
 # import tqdm
 import torch
 
-# Custom Imports
+# Local Imports
 from utils.utils import binary_accuracy, save_hist_graphs
 from utils.attributes import hist_attributes, train_attributes, predict_attributes
 

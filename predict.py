@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import v2
 from datasets import load_dataset
 
-# Custom Imports
+# Local Imports
 from data.data import detection_collate
 from utils.utils import save_hist_graphs, visualize_predictions
 from utils.attributes import hist_attributes

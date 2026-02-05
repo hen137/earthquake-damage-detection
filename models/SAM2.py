@@ -6,7 +6,7 @@ import time
 import torch
 import torch.nn.functional as F
 
-# Custom Imports
+# Local Imports
 from models.ModelWrapper import ModelBase
 
 class SAM2(ModelBase):

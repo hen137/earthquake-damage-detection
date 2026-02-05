@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import v2
 from datasets import load_dataset
 
-# Custom Imports
+# Local Imports
 from data.data import detection_collate
 
 def build_model(args, train_loader, val_loader):
