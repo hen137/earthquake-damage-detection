@@ -167,11 +167,11 @@ def compare_predictions(images, targets, num_samples, **model_predictions):
     for row in range(len(row_labels)):
         if row == 0:
             for i in range(len(idxs)):
-                axes[0, i].imshow(images[i].permute(1, 2, 0))
+                axes[0, i].imshow(images[i].permute(1, 2, 0).cpu())
                 axes[0, i].axis('off')
         elif row == 1:
             for i in range(len(idxs)):
-                axes[1, i].imshow((gt_masks[i] > 0).permute(1, 2, 0), cmap='gray')
+                axes[1, i].imshow((gt_masks[i] > 0).permute(1, 2, 0).cpu(), cmap='gray')
                 axes[1, i].axis('off')
         else:
             model_name = row_labels[row]

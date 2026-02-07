@@ -187,6 +187,20 @@ class ModelBase:
         self._set_eval_mode()
         with torch.no_grad():
             for i, (image_batch, targets_batch) in enumerate(self.test_loader):
+                image_batch = image_batch.to(self.device)
+                if isinstance(targets_batch, list):
+                    for sample in targets_batch:
+                        for key in list(sample.keys()):
+                            val = sample[key]
+                            if isinstance(val, torch.Tensor):
+                                sample[key] = val.to(self.device)
+                                
+                elif isinstance(targets_batch, dict):
+                    for key in list(targets_batch.keys()):
+                        val = targets_batch[key]
+                        if isinstance(val, torch.Tensor):
+                            targets_batch[key] = val.to(self.device)
+                
                 t = time.time()
                 _, pred_masks = self._prediction(image_batch, targets_batch)
                 t_batch_avg += time.time() - t

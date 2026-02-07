@@ -28,7 +28,7 @@ def build_model(args, test_loader, model):
         
         net = predictor
         
-        checkpoint = torch.load(args.SAM2_chkpt_file, map_location=device, weights_only=False)
+        checkpoint = torch.load(args.SAM2_chkpt, map_location=device, weights_only=False)
         
         # kwargs = {
         #     **kwargs,
@@ -49,7 +49,7 @@ def build_model(args, test_loader, model):
         net.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_features_box, num_classes=2)
         net.roi_heads.mask_predictor = MaskRCNNPredictor(in_channels=in_features_mask, dim_reduced=dim_reduced, num_classes=2)
         
-        checkpoint = torch.load(args.MaskRCNN_chkpt_file, map_location=device, weights_only=False)
+        checkpoint = torch.load(args.MaskRCNN_chkpt, map_location=device, weights_only=False)
         
         kwargs = {
             **kwargs,
@@ -126,8 +126,8 @@ def parse_arguments():
 
     parser.add_argument('--test_batch_size', required=False, default=1, type=int)
 
-    parser.add_argument('--MaskRCNN_chkpt_file', required=True, type=str)
-    parser.add_argument('--SAM2_chkpt_file', required=True, type=str)
+    parser.add_argument('--MaskRCNN_chkpt', required=True, type=str)
+    parser.add_argument('--SAM2_chkpt', required=True, type=str)
     # parser.add_argument('--MaskRCNN_chkpt_file', required=False, default='models\checkpoints\MaskRCNN\KATE_CD\MaskRCNN_04-12-2025_01-45_E8_vA97.03_vF0.173_vIoU0.126.pth')
     # parser.add_argument('--SAM2_chkpt_file', required=False, default='models\checkpoints\SAM2\KATE_CD\SAM2_04-12-2025_13-21_E2_vA81.20_vF0.145_vIoU0.086.pth')
     
@@ -149,8 +149,8 @@ def main():
     
     for image_batch, target_batch in test_loader:
         for image, target in zip(image_batch, target_batch):
-            images.append(image)
-            targets.append(target)
+            images.append(image.to('cuda' if args.gpu and torch.cuda.is_available() else 'cpu'))
+            targets.append({target_key: target_value.to('cuda' if args.gpu and torch.cuda.is_available() else 'cpu') for target_key, target_value in target.items()})
     
     _, MaskRCNN = build_model(args, test_loader, 'MaskRCNN')
     _, SAM2 = build_model(args, test_loader, 'SAM2')
